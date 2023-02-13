@@ -46,7 +46,7 @@ vecmem::data::vector_buffer<device::prefix_sum_element_t> make_prefix_sum_buff(
     ::alpaka::exec<TAcc>(
             queue,
             workDiv,
-            [&] ALPAKA_FN_ACC(
+            [] ALPAKA_FN_ACC(
                 TAcc const& lambdaAcc,
                 vecmem::data::vector_view<const device::prefix_sum_size_t> sizes_view,
                 vecmem::data::vector_view<device::prefix_sum_element_t> ps_view) -> void
