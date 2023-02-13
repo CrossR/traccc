@@ -142,7 +142,7 @@ endif()
 
 # Set up Alpaka.
 option( TRACCC_SETUP_ALPAKA
-   "Set up the Alpaka library" TRUE )
+   "Set up the Alpaka library" ${TRACCC_BUILD_ALPAKA})
 option( TRACCC_USE_SYSTEM_ALPAKA
    "Pick up an existing installation of Alpaka from the build environment"
    ${TRACCC_USE_SYSTEM_LIBS} )
@@ -249,7 +249,7 @@ add_subdirectory( plugins )
 
 if ( TRACCC_BUILD_EXAMPLES )
    # Find Boost.
-   find_package( Boost REQUIRED COMPONENTS program_options)
+   find_package( Boost REQUIRED COMPONENTS program_options filesystem)
    # Find ROOT.
    find_package( ROOT COMPONENTS Core RIO Tree Hist )
    add_subdirectory( performance )
