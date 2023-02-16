@@ -20,6 +20,9 @@
 #include "traccc/seeding/device/count_grid_capacities.hpp"
 #include "traccc/seeding/device/populate_grid.hpp"
 
+// Temp include for populate_grid
+#include "traccc/seeding/spacepoint_binning_helper.hpp"
+
 // Alpaka
 #include <alpaka/alpaka.hpp>
 
@@ -33,7 +36,7 @@
 namespace traccc::alpaka {
 
 /// Spacepoing binning executed on an Alpaka device
-template<typename TQueue, typename TAcc>
+template<typename TAcc, typename TQueue>
 class spacepoint_binning : public algorithm<sp_grid_buffer(
                                const spacepoint_container_types::const_view&)> {
 
@@ -41,25 +44,29 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
     /// Constructor for the algorithm
     spacepoint_binning(const seedfinder_config& config,
                        const spacepoint_grid_config& grid_config,
-                       const traccc::memory_resource& mr,
-                       TQueue& queue, TAcc const& acc) :
+                       const traccc::memory_resource& mr) :
             m_config(config.toInternalUnits()),
             m_axes(get_axes(grid_config.toInternalUnits(),
-            *(mr.host))), m_mr(mr), m_queue(queue), m_acc(acc)
+            *(mr.host))), m_mr(mr)
     {
         m_copy = std::make_unique<vecmem::copy>();
     }
 
     /// Function executing the algorithm with a view of spacepoints
-    sp_grid_buffer operator()(const spacepoint_container_types::const_view&
+    ALPAKA_FN_HOST sp_grid_buffer operator()(const spacepoint_container_types::const_view&
                                   spacepoints_view) const override
     {
         // Get the spacepoint sizes from the view
         auto sp_sizes = m_copy->get_sizes(spacepoints_view.items);
+        const uint32_t n(spacepoints_view.items.size());
+
+        auto devAcc = ::alpaka::getDevByIdx<TAcc>(0u);
+        auto queue = TQueue{devAcc};
+        auto bufAcc = ::alpaka::allocBuf<float, uint32_t>(devAcc, n);
 
         // Create prefix sum buffer
         vecmem::data::vector_buffer sp_prefix_sum_buff =
-            make_prefix_sum_buff(sp_sizes, *m_copy, m_mr, m_queue, m_acc);
+            make_prefix_sum_buff<TAcc>(sp_sizes, *m_copy, m_mr, queue, bufAcc);
 
         // Set up the container that will be filled with the required capacities for
         // the spacepoint grid.
@@ -71,11 +78,10 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
         vecmem::data::vector_view<unsigned int> grid_capacities_view = grid_capacities_buff;
 
         using WorkDiv = ::alpaka::WorkDivMembers<::alpaka::DimInt<1u>, uint32_t>;
-        auto const n = sp_sizes;
-        auto const deviceProperties = ::alpaka::getAccDevProps<TAcc>(m_acc);
+        auto const deviceProperties = ::alpaka::getAccDevProps<TAcc>(devAcc);
         auto const maxThreadsPerBlock = deviceProperties.m_blockThreadExtentMax[0];
         auto const threadsPerBlock = maxThreadsPerBlock;
-        auto const blocksPerGrid = deviceProperties.m_multiProcessorCount;
+        auto const blocksPerGrid = (n + threadsPerBlock - 1) / threadsPerBlock;
         auto const elementsPerThread = 1u;
         auto workDiv = WorkDiv{blocksPerGrid, threadsPerBlock, elementsPerThread};
 
@@ -92,7 +98,7 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
         //             sp_prefix_sum_buff_view, grid_capacities_view);
         //     });
         ::alpaka::exec<TAcc>(
-                m_queue,
+                queue,
                 workDiv,
                 [] ALPAKA_FN_ACC(
                     TAcc const& acc,
@@ -104,8 +110,8 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
                     vecmem::data::vector_view<unsigned int>& grid_capacities_view
                 ) -> void
                 {
-                    auto const globalThreadExtent(::alpaka::getWorkDiv<::alpaka::Grid, ::alpaka::Threads>(acc)[0u]);
-                    auto const globalThreadIdx(::alpaka::getIdx<::alpaka::Grid, ::alpaka::Threads>(acc)[0u]);
+                    auto const globalThreadExtent = ::alpaka::getWorkDiv<::alpaka::Grid, ::alpaka::Threads>(acc)[0u];
+                    auto const globalThreadIdx = ::alpaka::getIdx<::alpaka::Grid, ::alpaka::Threads>(acc)[0u];
 
                     for (uint32_t dataDomainIdx = globalThreadIdx;
                          dataDomainIdx < spacepoints_view.items.size();
@@ -116,10 +122,10 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
                             sp_prefix_sum_buff_view, grid_capacities_view);
                    }
                 },
-                m_axes.first, m_axes.second,
+                m_config, m_axes.first, m_axes.second,
                 spacepoints_view, sp_prefix_sum_buff_view, grid_capacities_view
             );
-        ::alpaka::wait(m_queue);
+        ::alpaka::wait(queue);
 
         // Copy grid capacities back to the host
         vecmem::vector<unsigned int> grid_capacities_host(m_mr.host ? m_mr.host
@@ -147,30 +153,58 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
         //     });
 
         ::alpaka::exec<TAcc>(
-                m_queue,
+                queue,
                 workDiv,
                 [] ALPAKA_FN_ACC(
                     TAcc const& acc,
                     const seedfinder_config& config,
                     const spacepoint_container_types::const_view& spacepoints_view,
-                    vecmem::data::vector_view<device::prefix_sum_element_t>& sp_prefix_sum_buff_view,
+                    vecmem::data::vector_view<device::prefix_sum_element_t>& sp_prefix_sum_view,
                     sp_grid_view& grid_view
                 ) -> void
                 {
-                    auto globalThreadExtent(::alpaka::getWorkDiv<::alpaka::Grid, ::alpaka::Threads>(acc)[0u]);
-                    auto globalThreadIdx(::alpaka::getIdx<::alpaka::Grid, ::alpaka::Threads>(acc)[0u]);
+                    auto const globalThreadExtent = ::alpaka::getWorkDiv<::alpaka::Grid, ::alpaka::Threads>(acc)[0u];
+                    auto const globalThreadIdx = ::alpaka::getIdx<::alpaka::Grid, ::alpaka::Threads>(acc)[0u];
 
                     for (uint32_t dataDomainIdx = globalThreadIdx;
                          dataDomainIdx < spacepoints_view.items.size();
                          dataDomainIdx += globalThreadIdx)
                     {
-                        device::populate_grid(dataDomainIdx, config,
-                            spacepoints_view, sp_prefix_sum_buff_view, grid_view);
-                   }
+                        vecmem::device_vector<const device::prefix_sum_element_t> sp_prefix_sum(
+                            sp_prefix_sum_view);
+
+                        if (dataDomainIdx >= sp_prefix_sum.size()) {
+                            return;
+                        }
+
+                        // Get the spacepoint that we need to look at.
+                        const device::prefix_sum_element_t sp_idx = sp_prefix_sum[dataDomainIdx];
+                        const spacepoint_container_types::const_device spacepoints(
+                            spacepoints_view);
+                        const spacepoint sp = spacepoints.at(sp_idx);
+
+                        /// Check out if the spacepoint can be used for seeding.
+                        if (is_valid_sp(config, sp) != detray::detail::invalid_value<size_t>()) {
+
+                            // Set up the spacepoint grid object(s).
+                            sp_grid_device grid(grid_view);
+                            const sp_grid_device::axis_p0_type& phi_axis = grid.axis_p0();
+                            const sp_grid_device::axis_p1_type& z_axis = grid.axis_p1();
+
+                            // Find the grid bin that the spacepoint belongs to.
+                            const internal_spacepoint<spacepoint> isp(
+                                spacepoints, {sp_idx.first, sp_idx.second}, config.beamPos);
+                            const std::size_t bin_index =
+                                phi_axis.bin(isp.phi()) + phi_axis.bins() * z_axis.bin(isp.z());
+
+                            // Add the spacepoint to the grid.
+                            grid.bin(bin_index).push_back(std::move(isp));
+                        }
+                    }
                 },
                 m_config, spacepoints_view, sp_prefix_sum_buff_view, grid_view
             );
-        ::alpaka::wait(m_queue);
+        ::alpaka::wait(queue);
 
         // Return the freshly filled buffer.
         return grid_buffer;
@@ -182,8 +216,6 @@ class spacepoint_binning : public algorithm<sp_grid_buffer(
     std::pair<sp_grid::axis_p0_type, sp_grid::axis_p1_type> m_axes;
     traccc::memory_resource m_mr;
     std::unique_ptr<vecmem::copy> m_copy;
-    TQueue m_queue;
-    TAcc m_acc;
 
 };  // class spacepoint_binning
 
