@@ -15,10 +15,10 @@
 
 namespace traccc::alpaka {
 
-template<typename TQueue, typename TAcc>
+template<typename Acc, typename Queue, typename BufAcc>
 vecmem::data::vector_buffer<device::prefix_sum_element_t> make_prefix_sum_buff(
     const std::vector<device::prefix_sum_size_t>& sizes, vecmem::copy& copy,
-    const traccc::memory_resource& mr, TQueue& queue, const TAcc& acc) {
+    const traccc::memory_resource& mr, Queue& queue, BufAcc& acc) {
 
     const device::prefix_sum_buffer_t make_sum_result =
         device::make_prefix_sum_buffer(sizes, copy, mr);
@@ -31,23 +31,23 @@ vecmem::data::vector_buffer<device::prefix_sum_element_t> make_prefix_sum_buff(
         totalSize, mr.main);
     copy.setup(prefix_sum_buff);
 
-    using Dim = ::alpaka::Dim<TAcc>;
+    using Dim = ::alpaka::Dim<Acc>;
     using Vec = ::alpaka::Vec<Dim, size_t>;
     Vec const elementsPerThread(Vec::all(static_cast<size_t>(1)));
     Vec const threadsPerGrid(Vec::all(static_cast<size_t>(8)));
     using WorkDiv = ::alpaka::WorkDivMembers<Dim, size_t>;
-    WorkDiv const workDiv = ::alpaka::getValidWorkDiv<TAcc>(
+    WorkDiv const workDiv = ::alpaka::getValidWorkDiv<Acc>(
         acc,
         threadsPerGrid,
         elementsPerThread,
         false,
         ::alpaka::GridBlockExtentSubDivRestrictions::Unrestricted);
 
-    ::alpaka::exec<TAcc>(
+    ::alpaka::exec<Acc>(
             queue,
             workDiv,
             [] ALPAKA_FN_ACC(
-                TAcc const& lambdaAcc,
+                Acc const& lambdaAcc,
                 vecmem::data::vector_view<const device::prefix_sum_size_t> sizes_view,
                 vecmem::data::vector_view<device::prefix_sum_element_t> ps_view) -> void
             {

@@ -92,18 +92,12 @@ int seq_run(const traccc::seeding_input_config& i_cfg,
     // Creating alpaka objects
     using namespace alpaka;
     using Acc = ExampleDefaultAcc<DimInt<1>, uint32_t>;
-    /* using Acc = DevCpu; */
-    // using Acc = AccCpuOmp2Blocks<DimInt<1>, uint32_t>;
-    /* using Acc = AccGpuCudaRt<DimInt<1>, uint32_t>; */
     using Queue = Queue<Acc, Blocking>;
-
     std::cout << "Using alpaka accelerator: " << alpaka::getAccName<Acc>() << std::endl;
-    auto const devAcc = getDevByIdx<Acc>(uint32_t{0});
-    auto queue = Queue{devAcc};
 
     // Alpaka Spacepoint Binning
-    traccc::alpaka::spacepoint_binning<Queue, Acc> m_spacepoint_binning(
-        default_seedfinder_config(), default_spacepoint_grid_config(), mr, queue, devAcc);
+    traccc::alpaka::spacepoint_binning<Acc, Queue> m_spacepoint_binning(
+        default_seedfinder_config(), default_spacepoint_grid_config(), mr);
 
     // performance writer
     traccc::seeding_performance_writer sd_performance_writer(

@@ -10,16 +10,21 @@ include( traccc-compiler-options-cpp )
 if(alpaka_ACC_GPU_CUDA_ENABLE)
   include( traccc-compiler-options-cuda )
   enable_language(CUDA)
+
+  set_source_files_properties(include/traccc/alpaka/utils/make_prefix_sum_buff.hpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(src/utils/make_prefix_sum_buff.cpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(include/traccc/alpaka/seeding/spacepoint_binning.hpp PROPERTIES LANGUAGE CUDA)
+  set_source_files_properties(src/seeding/spacepoint_binning.cpp PROPERTIES LANGUAGE CUDA)
 endif()
 
 traccc_add_library( traccc_alpaka alpaka TYPE SHARED
   # Utility definitions.
   "include/traccc/alpaka/utils/definitions.hpp"
   "include/traccc/alpaka/utils/make_prefix_sum_buff.hpp"
-  "src/utils/make_prefix_sum_buff.cu"
+  "src/utils/make_prefix_sum_buff.cpp"
   # Seed finding code.
   "include/traccc/alpaka/seeding/spacepoint_binning.hpp"
-  "src/seeding/spacepoint_binning.cu"
+  "src/seeding/spacepoint_binning.cpp"
 )
 
 target_link_libraries( traccc_alpaka
