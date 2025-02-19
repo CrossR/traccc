@@ -10,7 +10,7 @@
 #include "traccc/alpaka/fitting/fitting_algorithm.hpp"
 #include "traccc/alpaka/seeding/seeding_algorithm.hpp"
 #include "traccc/alpaka/seeding/track_params_estimation.hpp"
-#include "traccc/alpaka/utils/get_vecmem_resource.hpp"
+#include "traccc/alpaka/utils/vecmem_types.hpp"
 #include "traccc/definitions/common.hpp"
 #include "traccc/device/container_d2h_copy_alg.hpp"
 #include "traccc/device/container_h2d_copy_alg.hpp"
@@ -43,11 +43,17 @@
 #include "traccc/seeding/track_params_estimation.hpp"
 
 // Detray include(s).
-#include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
-#include "detray/navigation/navigator.hpp"
-#include "detray/propagator/propagator.hpp"
-#include "detray/propagator/rk_stepper.hpp"
+#include <detray/core/detector.hpp>
+#include <detray/detectors/bfield.hpp>
+#include <detray/io/frontend/detector_reader.hpp>
+#include <detray/navigation/navigator.hpp>
+#include <detray/propagator/propagator.hpp>
+#include <detray/propagator/rk_stepper.hpp>
+
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+#include <sycl/sycl.hpp>
+#include <vecmem/utils/sycl/queue_wrapper.hpp>
+#endif
 
 // System include(s).
 #include <exception>

@@ -12,9 +12,9 @@
 #include "traccc/utils/subspace.hpp"
 
 // Detray include(s).
-#include "detray/geometry/shapes/annulus2D.hpp"
-#include "detray/geometry/shapes/line.hpp"
-#include "detray/tracks/bound_track_parameters.hpp"
+#include <detray/geometry/shapes/annulus2D.hpp>
+#include <detray/geometry/shapes/line.hpp>
+#include <detray/tracks/bound_track_parameters.hpp>
 
 // System include(s).
 #include <array>
@@ -45,9 +45,12 @@ struct measurement_smearer {
     std::mt19937_64 generator{rd()};
 
     std::array<scalar_type, 2> get_offset() {
-        return {
-            std::normal_distribution<scalar_type>(0.f, stddev[0])(generator),
-            std::normal_distribution<scalar_type>(0.f, stddev[1])(generator)};
+        auto generate_offset = [&gen = generator](const scalar_type sigma) {
+            return sigma == scalar_type{0}
+                       ? 0.f
+                       : std::normal_distribution<scalar_type>(0.f, sigma)(gen);
+        };
+        return {generate_offset(stddev[0]), generate_offset(stddev[1])};
     }
 
     template <typename mask_t>

@@ -20,11 +20,7 @@
 #include "traccc/utils/projections.hpp"
 
 // Detray include(s).
-#include <detray/propagator/actor_chain.hpp>
-#include <detray/propagator/actors/aborters.hpp>
-#include <detray/propagator/actors/parameter_resetter.hpp>
-#include <detray/propagator/actors/parameter_transporter.hpp>
-#include <detray/propagator/actors/pointwise_material_interactor.hpp>
+#include <detray/propagator/actors.hpp>
 #include <detray/propagator/propagator.hpp>
 
 // System include(s).
@@ -71,7 +67,7 @@ track_candidate_container_types::host find_tracks(
     using interactor_type = detray::pointwise_material_interactor<algebra_type>;
 
     using actor_type = detray::actor_chain<
-        detray::tuple, detray::pathlimit_aborter<scalar_type>, transporter_type,
+        detray::pathlimit_aborter<scalar_type>, transporter_type,
         interaction_register<interactor_type>, interactor_type, ckf_aborter>;
 
     using propagator_type =
@@ -362,7 +358,7 @@ track_candidate_container_types::host find_tracks(
         unsigned int n_skipped{0u};
         while (true) {
 
-            if (L.meas_idx > n_meas) {
+            if (L.meas_idx >= n_meas) {
                 n_skipped++;
             }
 
@@ -393,7 +389,7 @@ track_candidate_container_types::host find_tracks(
         for (auto it = cands_per_track.rbegin(); it != cands_per_track.rend();
              it++) {
 
-            while (L.meas_idx > n_meas) {
+            while (L.meas_idx >= n_meas) {
                 const auto link_pos =
                     param_to_link[L.previous.first][L.previous.second];
 
@@ -401,12 +397,11 @@ track_candidate_container_types::host find_tracks(
             }
 
             // Break if the measurement is still invalid
-            if (L.meas_idx > measurements.size()) {
+            if (L.meas_idx >= measurements.size()) {
                 break;
             }
 
-            auto& cand = *it;
-            cand = measurements.at(L.meas_idx);
+            *it = measurements.at(L.meas_idx);
 
             // Break the loop if the iterator is at the first candidate and
             // fill the seed
@@ -416,13 +411,12 @@ track_candidate_container_types::host find_tracks(
 
                 // Add seed and track candidates to the output container
                 output_candidates.push_back(cand_seed, cands_per_track);
-                break;
+            } else {
+                const auto l_pos =
+                    param_to_link[L.previous.first][L.previous.second];
+
+                L = links[L.previous.first][l_pos];
             }
-
-            const auto l_pos =
-                param_to_link[L.previous.first][L.previous.second];
-
-            L = links[L.previous.first][l_pos];
         }
     }
 
