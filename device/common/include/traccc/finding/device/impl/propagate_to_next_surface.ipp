@@ -29,7 +29,6 @@ TRACCC_HOST_DEVICE inline void propagate_to_next_surface(
     vecmem::device_vector<const unsigned int> param_ids(payload.param_ids_view);
 
     const unsigned int param_id = param_ids.at(globalIndex);
-    const unsigned int step = payload.step;
 
     // Number of tracks per seed
     vecmem::device_vector<unsigned int> n_tracks_per_seed(
@@ -60,7 +59,7 @@ TRACCC_HOST_DEVICE inline void propagate_to_next_surface(
 
     if (links.at(param_id).n_skipped > cfg.max_num_skipping_per_cand) {
         params_liveness[param_id] = 0u;
-        tips.push_back({step, param_id});
+        tips.push_back({payload.step, param_id});
         return;
     }
 
@@ -116,8 +115,8 @@ TRACCC_HOST_DEVICE inline void propagate_to_next_surface(
     if (s4.success) {
         params[param_id] = propagation._stepping.bound_params();
 
-        if (step == cfg.max_track_candidates_per_track - 1) {
-            tips.push_back({step, param_id});
+        if (payload.step == cfg.max_track_candidates_per_track - 1) {
+            tips.push_back({payload.step, param_id});
             params_liveness[param_id] = 0u;
         } else {
             params_liveness[param_id] = 1u;
@@ -125,8 +124,8 @@ TRACCC_HOST_DEVICE inline void propagate_to_next_surface(
     } else {
         params_liveness[param_id] = 0u;
 
-        if (step >= cfg.min_track_candidates_per_track - 1) {
-            tips.push_back({step, param_id});
+        if (payload.step >= cfg.min_track_candidates_per_track - 1) {
+            tips.push_back({payload.step, param_id});
         }
     }
 }
