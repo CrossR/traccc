@@ -44,12 +44,11 @@
 #include "traccc/seeding/track_params_estimation.hpp"
 
 // Detray include(s).
-#include "detray/core/detector.hpp"
-#include "detray/detectors/bfield.hpp"
-#include "detray/io/frontend/detector_reader.hpp"
-#include "detray/navigation/navigator.hpp"
-#include "detray/propagator/propagator.hpp"
-#include "detray/propagator/rk_stepper.hpp"
+#include <detray/detectors/bfield.hpp>
+#include <detray/io/frontend/detector_reader.hpp>
+#include <detray/navigation/navigator.hpp>
+#include <detray/propagator/propagator.hpp>
+#include <detray/propagator/rk_stepper.hpp>
 
 // System include(s).
 #include <exception>
@@ -187,10 +186,10 @@ int seq_run(const traccc::opts::detector& detector_opts,
         seeding_opts.seedfilter, mr, copy, logger().clone("AlpakaSeedingAlg"));
     traccc::alpaka::track_params_estimation tp_alpaka(
         mr, copy, logger().clone("AlpakaTrackParEstAlg"));
-    device_finding_algorithm finding_alg_alpaka(finding_cfg, mr, copy,
-                                                logger().clone("AlpakaFindingAlg"));
-    device_fitting_algorithm fitting_alg_alpaka(fitting_cfg, mr, copy,
-                                                logger().clone("AlpakaFittingAlg"));
+    device_finding_algorithm finding_alg_alpaka(
+        finding_cfg, mr, copy, logger().clone("AlpakaFindingAlg"));
+    device_fitting_algorithm fitting_alg_alpaka(
+        fitting_cfg, mr, copy, logger().clone("AlpakaFittingAlg"));
 
     traccc::device::container_d2h_copy_alg<
         traccc::track_candidate_container_types>
@@ -366,7 +365,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
           compare cpu and alpaka result
           ----------------------------------*/
 
-        traccc::measurement_collection_types::host measurements_per_event_alpaka;
+        traccc::measurement_collection_types::host
+            measurements_per_event_alpaka;
         traccc::edm::spacepoint_collection::host spacepoints_per_event_alpaka{
             host_mr};
         traccc::edm::seed_collection::host seeds_alpaka{host_mr};
@@ -482,15 +482,14 @@ int seq_run(const traccc::opts::detector& detector_opts,
         sd_performance_writer.finalize();
     }
 
-
     TRACCC_INFO("==> Statistics ... ");
     TRACCC_INFO("- read    " << n_cells << " cells");
     TRACCC_INFO("- created (cpu)  " << n_measurements << " measurements     ");
     TRACCC_INFO("- created (alpaka)  " << n_measurements_alpaka
-                                     << " measurements     ");
+                                       << " measurements     ");
     TRACCC_INFO("- created (cpu)  " << n_spacepoints << " spacepoints     ");
     TRACCC_INFO("- created (alpaka) " << n_spacepoints_alpaka
-                                    << " spacepoints     ");
+                                      << " spacepoints     ");
 
     TRACCC_INFO("- created  (cpu) " << n_seeds << " seeds");
     TRACCC_INFO("- created (alpaka) " << n_seeds_alpaka << " seeds");
