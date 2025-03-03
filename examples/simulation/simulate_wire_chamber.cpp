@@ -72,7 +72,7 @@ int simulate(const traccc::opts::generation& generation_opts,
 
     // Origin of particles
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
     generator_type::configuration gen_cfg{};
     gen_cfg.n_tracks(generation_opts.gen_nparticles);
@@ -124,6 +124,8 @@ int simulate(const traccc::opts::generation& generation_opts,
 // The main routine
 //
 int main(int argc, char* argv[]) {
+    std::unique_ptr<const traccc::Logger> logger = traccc::getDefaultLogger(
+        "TracccExampleSimulateWireChamber", traccc::Logging::Level::INFO);
 
     // Program options.
     traccc::opts::generation generation_opts;
@@ -133,7 +135,8 @@ int main(int argc, char* argv[]) {
         "Wire-Chamber Simulation",
         {generation_opts, output_opts, propagation_opts},
         argc,
-        argv};
+        argv,
+        logger->cloneWithSuffix("Options")};
 
     // Run the application.
     return simulate(generation_opts, output_opts, propagation_opts);

@@ -18,6 +18,7 @@
 #include "traccc/fitting/kalman_filter/kalman_step_aborter.hpp"
 #include "traccc/fitting/kalman_filter/statistics_updater.hpp"
 #include "traccc/fitting/kalman_filter/two_filters_smoother.hpp"
+#include "traccc/fitting/status_codes.hpp"
 #include "traccc/utils/particle.hpp"
 
 // detray include(s).
@@ -138,8 +139,8 @@ class kalman_fitter {
     /// @param seed_params seed track parameter
     /// @param fitter_state the state of kalman fitter
     template <typename seed_parameters_t>
-    TRACCC_HOST_DEVICE void fit(const seed_parameters_t& seed_params,
-                                state& fitter_state) {
+    [[nodiscard]] TRACCC_HOST_DEVICE kalman_fitter_status
+    fit(const seed_parameters_t& seed_params, state& fitter_state) {
 
         // Run the kalman filtering for a given number of iterations
         for (std::size_t i = 0; i < m_cfg.n_iterations; i++) {
@@ -147,6 +148,11 @@ class kalman_fitter {
             // Reset the iterator of kalman actor
             fitter_state.m_fit_actor_state.reset();
 
+            // TODO: For multiple iterations, seed parameter should be set to
+            // the first track state which has either filtered or smoothed
+            // state. If the first track state is a hole, we need to back
+            // extrapolate from the filtered or smoothed state of next valid
+            // track state.
             auto seed_params_cpy =
                 (i == 0) ? seed_params
                          : fitter_state.m_fit_actor_state.m_track_states[0]
@@ -155,8 +161,16 @@ class kalman_fitter {
             inflate_covariance(seed_params_cpy,
                                m_cfg.covariance_inflation_factor);
 
-            filter(seed_params_cpy, fitter_state);
+            if (kalman_fitter_status res =
+                    filter(seed_params_cpy, fitter_state);
+                res != kalman_fitter_status::SUCCESS) {
+                return res;
+            }
+
+            check_fitting_result(fitter_state);
         }
+
+        return kalman_fitter_status::SUCCESS;
     }
 
     /// Run the kalman fitter for an iteration
@@ -166,8 +180,8 @@ class kalman_fitter {
     /// @param seed_params seed track parameter
     /// @param fitter_state the state of kalman fitter
     template <typename seed_parameters_t>
-    TRACCC_HOST_DEVICE void filter(const seed_parameters_t& seed_params,
-                                   state& fitter_state) {
+    [[nodiscard]] TRACCC_HOST_DEVICE kalman_fitter_status
+    filter(const seed_parameters_t& seed_params, state& fitter_state) {
 
         // Create propagator
         propagator_type propagator(m_cfg.propagation);
@@ -192,16 +206,21 @@ class kalman_fitter {
                 m_cfg.propagation.stepping.step_constraint);
 
         // Reset fitter statistics
-        fitter_state.m_fit_res.reset_statistics();
+        fitter_state.m_fit_res.trk_quality.reset_quality();
 
         // Run forward filtering
         propagator.propagate(propagation, fitter_state());
 
         // Run smoothing
-        smooth(fitter_state);
+        if (kalman_fitter_status res = smooth(fitter_state);
+            res != kalman_fitter_status::SUCCESS) {
+            return res;
+        }
 
         // Update track fitting qualities
         update_statistics(fitter_state);
+
+        return kalman_fitter_status::SUCCESS;
     }
 
     /// Run smoothing after kalman filtering
@@ -210,7 +229,8 @@ class kalman_fitter {
     /// track and vertex fitting", R.Frühwirth, NIM A.
     ///
     /// @param fitter_state the state of kalman fitter
-    TRACCC_HOST_DEVICE void smooth(state& fitter_state) {
+    [[nodiscard]] TRACCC_HOST_DEVICE kalman_fitter_status
+    smooth(state& fitter_state) {
 
         auto& track_states = fitter_state.m_fit_actor_state.m_track_states;
 
@@ -226,6 +246,16 @@ class kalman_fitter {
             // return false;
         }
         auto& last = *fitter_state.m_fit_actor_state.m_it_rev;
+
+        const scalar theta = last.filtered().theta();
+        if (theta <= 0.f || theta >= constant<traccc::scalar>::pi) {
+            return kalman_fitter_status::ERROR_THETA_ZERO;
+        }
+
+        if (!std::isfinite(last.filtered().phi())) {
+            return kalman_fitter_status::ERROR_INVERSION;
+        }
+
         last.smoothed().set_parameter_vector(last.filtered());
         last.smoothed().set_covariance(last.filtered().covariance());
         last.smoothed_chi2() = last.filtered_chi2();
@@ -240,6 +270,12 @@ class kalman_fitter {
 
             typename backward_propagator_type::state propagation(
                 last.smoothed(), m_field, m_detector);
+            propagation.set_particle(detail::correct_particle_hypothesis(
+                m_cfg.ptc_hypothesis, last.smoothed()));
+
+            assert(std::signbit(
+                       propagation._stepping.particle_hypothesis().charge()) ==
+                   std::signbit(propagation._stepping.bound_params().qop()));
 
             inflate_covariance(propagation._stepping.bound_params(),
                                m_cfg.covariance_inflation_factor);
@@ -258,6 +294,9 @@ class kalman_fitter {
             fitter_state.m_fit_actor_state.backward_mode = false;
 
         } else {
+            // The last track state is already smoothed
+            last.is_smoothed = true;
+
             // Run the Rauch–Tung–Striebel (RTS) smoother
             for (typename vecmem::device_vector<
                      track_state<algebra_type>>::reverse_iterator it =
@@ -266,10 +305,16 @@ class kalman_fitter {
 
                 const detray::tracking_surface sf{m_detector,
                                                   it->surface_link()};
-                sf.template visit_mask<gain_matrix_smoother<algebra_type>>(
-                    *it, *(it - 1));
+                if (kalman_fitter_status res =
+                        sf.template visit_mask<
+                            gain_matrix_smoother<algebra_type>>(*it, *(it - 1));
+                    res != kalman_fitter_status::SUCCESS) {
+                    return res;
+                }
             }
         }
+
+        return kalman_fitter_status::SUCCESS;
     }
 
     TRACCC_HOST_DEVICE
@@ -277,8 +322,13 @@ class kalman_fitter {
         auto& fit_res = fitter_state.m_fit_res;
         auto& track_states = fitter_state.m_fit_actor_state.m_track_states;
 
-        // Fit parameter = smoothed track parameter at the first surface
-        fit_res.fit_params = track_states[0].smoothed();
+        // Fit parameter = smoothed track parameter of the first smoothed track
+        // state
+        for (const auto& st : track_states) {
+            if (st.is_smoothed) {
+                fit_res.fit_params = st.smoothed();
+            }
+        }
 
         for (const auto& trk_state : track_states) {
 
@@ -288,11 +338,40 @@ class kalman_fitter {
                 fit_res, trk_state, m_cfg.use_backward_filter);
         }
 
+        // Track quality
+        auto& trk_quality = fit_res.trk_quality;
+
         // Subtract the NDoF with the degree of freedom of the bound track (=5)
-        fit_res.ndf = fit_res.ndf - 5.f;
+        trk_quality.ndf = trk_quality.ndf - 5.f;
 
         // The number of holes
-        fit_res.n_holes = fitter_state.m_fit_actor_state.n_holes;
+        trk_quality.n_holes = fitter_state.m_fit_actor_state.n_holes;
+    }
+
+    TRACCC_HOST_DEVICE
+    void check_fitting_result(state& fitter_state) {
+        auto& fit_res = fitter_state.m_fit_res;
+        const auto& track_states =
+            fitter_state.m_fit_actor_state.m_track_states;
+
+        // NDF should always be positive for fitting
+        if (fit_res.trk_quality.ndf > 0) {
+            for (const auto& trk_state : track_states) {
+                // Fitting fails if any of non-hole track states is not smoothed
+                if (!trk_state.is_hole && !trk_state.is_smoothed) {
+                    fit_res.fit_outcome =
+                        fitter_outcome::FAILURE_NOT_ALL_SMOOTHED;
+                    return;
+                }
+            }
+
+            // Fitting succeeds if any of non-hole track states is not smoothed
+            fit_res.fit_outcome = fitter_outcome::SUCCESS;
+            return;
+        }
+
+        fit_res.fit_outcome = fitter_outcome::FAILURE_NON_POSITIVE_NDF;
+        return;
     }
 
     private:

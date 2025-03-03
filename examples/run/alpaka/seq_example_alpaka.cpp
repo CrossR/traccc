@@ -36,7 +36,7 @@
 #include "traccc/options/track_propagation.hpp"
 #include "traccc/options/track_seeding.hpp"
 #include "traccc/performance/collection_comparator.hpp"
-#include "traccc/performance/container_comparator.hpp"
+#include "traccc/performance/soa_comparator.hpp"
 #include "traccc/performance/timer.hpp"
 #include "traccc/seeding/seeding_algorithm.hpp"
 #include "traccc/seeding/silicon_pixel_spacepoint_formation_algorithm.hpp"
@@ -65,7 +65,9 @@ int seq_run(const traccc::opts::detector& detector_opts,
             const traccc::opts::track_finding& finding_opts,
             const traccc::opts::track_propagation& propagation_opts,
             const traccc::opts::performance& performance_opts,
-            const traccc::opts::accelerator& accelerator_opts) {
+            const traccc::opts::accelerator& accelerator_opts,
+            std::unique_ptr<const traccc::Logger> ilogger) {
+    TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
     // Memory resources used by the application.
 #ifdef ALPAKA_ACC_SYCL_ENABLED
@@ -160,31 +162,27 @@ int seq_run(const traccc::opts::detector& detector_opts,
     const detray::bfield::const_field_t<traccc::scalar> field =
         detray::bfield::create_const_field<traccc::scalar>(field_vec);
 
-    traccc::host::clusterization_algorithm ca(host_mr);
-    host_spacepoint_formation_algorithm sf(host_mr);
-    traccc::seeding_algorithm sa(seeding_opts.seedfinder,
-                                 {seeding_opts.seedfinder},
-                                 seeding_opts.seedfilter, host_mr);
-    traccc::track_params_estimation tp(host_mr);
-    host_finding_algorithm finding_alg(finding_cfg);
-    host_fitting_algorithm fitting_alg(fitting_cfg, host_mr);
+    traccc::host::clusterization_algorithm ca(
+        host_mr, logger().clone("HostClusteringAlg"));
+    host_spacepoint_formation_algorithm sf(
+        host_mr, logger().clone("HostSpFormationAlg"));
+    traccc::host::seeding_algorithm sa(
+        seeding_opts.seedfinder, {seeding_opts.seedfinder},
+        seeding_opts.seedfilter, host_mr, logger().clone("HostSeedingAlg"));
+    traccc::host::track_params_estimation tp(
+        host_mr, logger().clone("HostTrackParEstAlg"));
 
-    traccc::alpaka::clusterization_algorithm ca_alpaka(mr, copy,
-                                                       clusterization_opts);
-    traccc::alpaka::measurement_sorting_algorithm ms_alpaka(copy);
-    device_spacepoint_formation_algorithm sf_alpaka(mr, copy);
+    traccc::alpaka::clusterization_algorithm ca_alpaka(
+        mr, copy, clusterization_opts, logger().clone("AlpakaClusteringAlg"));
+    traccc::alpaka::measurement_sorting_algorithm ms_alpaka(
+        copy, logger().clone("AlpakaMeasSortingAlg"));
+    device_spacepoint_formation_algorithm sf_alpaka(
+        mr, copy, logger().clone("AlpakaSpFormationAlg"));
     traccc::alpaka::seeding_algorithm sa_alpaka(
         seeding_opts.seedfinder, {seeding_opts.seedfinder},
-        seeding_opts.seedfilter, mr, copy);
-    traccc::alpaka::track_params_estimation tp_alpaka(mr, copy);
-    device_finding_algorithm finding_alg_alpaka(finding_cfg, mr, copy);
-    device_fitting_algorithm fitting_alg_alpaka(fitting_cfg, mr, copy);
-
-    traccc::device::container_d2h_copy_alg<
-        traccc::track_candidate_container_types>
-        copy_track_candidates(mr, copy);
-    traccc::device::container_d2h_copy_alg<traccc::track_state_container_types>
-        copy_track_states(mr, copy);
+        seeding_opts.seedfilter, mr, copy, logger().clone("AlpakaSeedingAlg"));
+    traccc::alpaka::track_params_estimation tp_alpaka(
+        mr, copy, logger().clone("AlpakaTrackParEstAlg"));
 
     // performance writer
     traccc::seeding_performance_writer sd_performance_writer(
@@ -199,18 +197,16 @@ int seq_run(const traccc::opts::detector& detector_opts,
         // Instantiate host containers/collections
         traccc::host::clusterization_algorithm::output_type
             measurements_per_event;
-        host_spacepoint_formation_algorithm::output_type spacepoints_per_event;
-        traccc::seeding_algorithm::output_type seeds;
-        traccc::track_params_estimation::output_type params;
-        host_finding_algorithm::output_type track_candidates;
-        host_fitting_algorithm::output_type track_states;
+        host_spacepoint_formation_algorithm::output_type spacepoints_per_event{
+            host_mr};
+        traccc::host::seeding_algorithm::output_type seeds{host_mr};
+        traccc::host::track_params_estimation::output_type params{&host_mr};
 
         // Instantiate alpaka containers/collections
         traccc::measurement_collection_types::buffer measurements_alpaka_buffer(
             0, *mr.host);
-        traccc::spacepoint_collection_types::buffer spacepoints_alpaka_buffer(
-            0, *mr.host);
-        traccc::seed_collection_types::buffer seeds_alpaka_buffer(0, *mr.host);
+        traccc::edm::spacepoint_collection::buffer spacepoints_alpaka_buffer;
+        traccc::edm::seed_collection::buffer seeds_alpaka_buffer;
         traccc::bound_track_parameters_collection_types::buffer
             params_alpaka_buffer(0, *mr.host);
         traccc::track_candidate_container_types::buffer track_candidates_buffer;
@@ -226,10 +222,10 @@ int seq_run(const traccc::opts::detector& detector_opts,
                                              elapsedTimes);
                 // Read the cells from the relevant event file into host memory.
                 static constexpr bool DEDUPLICATE = true;
-                traccc::io::read_cells(cells_per_event, event,
-                                       input_opts.directory, &host_det_descr,
-                                       input_opts.format, DEDUPLICATE,
-                                       input_opts.use_acts_geom_source);
+                traccc::io::read_cells(
+                    cells_per_event, event, input_opts.directory,
+                    logger().clone(), &host_det_descr, input_opts.format,
+                    DEDUPLICATE, input_opts.use_acts_geom_source);
             }  // stop measuring file reading timer
 
             n_cells += cells_per_event.size();
@@ -290,23 +286,25 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 if (accelerator_opts.compare_with_cpu) {
                     traccc::performance::timer t("Seeding  (cpu)",
                                                  elapsedTimes);
-                    seeds = sa(spacepoints_per_event);
+                    seeds = sa(vecmem::get_data(spacepoints_per_event));
                 }  // stop measuring seeding cpu timer
 
                 // Alpaka
                 {
                     traccc::performance::timer t("Track params (alpaka)",
                                                  elapsedTimes);
-                    params_alpaka_buffer =
-                        tp_alpaka(spacepoints_alpaka_buffer,
-                                  seeds_alpaka_buffer, field_vec);
+                    params_alpaka_buffer = tp_alpaka(
+                        measurements_alpaka_buffer, spacepoints_alpaka_buffer,
+                        seeds_alpaka_buffer, field_vec);
                 }  // stop measuring track params timer
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {
                     traccc::performance::timer t("Track params  (cpu)",
                                                  elapsedTimes);
-                    params = tp(spacepoints_per_event, seeds, field_vec);
+                    params = tp(vecmem::get_data(measurements_per_event),
+                                vecmem::get_data(spacepoints_per_event),
+                                vecmem::get_data(seeds), field_vec);
                 }  // stop measuring track params cpu timer
 
                 // Alpaka
@@ -351,11 +349,11 @@ int seq_run(const traccc::opts::detector& detector_opts,
           compare cpu and alpaka result
           ----------------------------------*/
 
-        traccc::measurement_collection_types::host
-            measurements_per_event_alpaka;
-        traccc::spacepoint_collection_types::host spacepoints_per_event_alpaka;
-        traccc::seed_collection_types::host seeds_alpaka;
-        traccc::bound_track_parameters_collection_types::host params_alpaka;
+        traccc::edm::spacepoint_collection::host spacepoints_per_event_alpaka{
+            host_mr};
+        traccc::edm::seed_collection::host seeds_alpaka{host_mr};
+        traccc::bound_track_parameters_collection_types::host params_alpaka{
+            &host_mr};
 
         copy(measurements_alpaka_buffer, measurements_per_event_alpaka)->wait();
         copy(spacepoints_alpaka_buffer, spacepoints_per_event_alpaka)->wait();
@@ -378,21 +376,23 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 vecmem::get_data(measurements_per_event_alpaka));
 
             // Compare the spacepoints made on the host and on the device.
-            traccc::collection_comparator<traccc::spacepoint>
+            traccc::soa_comparator<traccc::edm::spacepoint_collection>
                 compare_spacepoints{"spacepoints"};
             compare_spacepoints(vecmem::get_data(spacepoints_per_event),
                                 vecmem::get_data(spacepoints_per_event_alpaka));
 
             // Compare the seeds made on the host and on the device
-            traccc::collection_comparator<traccc::seed> compare_seeds{
-                "seeds", traccc::details::comparator_factory<traccc::seed>{
+            traccc::soa_comparator<traccc::edm::seed_collection> compare_seeds{
+                "seeds", traccc::details::comparator_factory<
+                             traccc::edm::seed_collection::const_device::
+                                 const_proxy_type>{
                              vecmem::get_data(spacepoints_per_event),
                              vecmem::get_data(spacepoints_per_event_alpaka)}};
             compare_seeds(vecmem::get_data(seeds),
                           vecmem::get_data(seeds_alpaka));
 
             // Compare the track parameters made on the host and on the device.
-            traccc::collection_comparator<traccc::bound_track_parameters>
+            traccc::collection_comparator<traccc::bound_track_parameters<>>
                 compare_track_parameters{"track parameters"};
             compare_track_parameters(vecmem::get_data(params),
                                      vecmem::get_data(params_alpaka));
@@ -448,8 +448,15 @@ int seq_run(const traccc::opts::detector& detector_opts,
 
         if (performance_opts.run) {
 
-            // TODO: Do evt_data.fill_cca_result(...) with alpaka clusters and
-            // measurements
+            traccc::event_data evt_data(input_opts.directory, event, host_mr,
+                                        input_opts.use_acts_geom_source,
+                                        &host_detector, input_opts.format,
+                                        false);
+
+            sd_performance_writer.write(
+                vecmem::get_data(seeds),
+                vecmem::get_data(spacepoints_per_event),
+                vecmem::get_data(measurements_per_event), evt_data);
         }
     }
 
@@ -487,6 +494,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
 // The main routine
 //
 int main(int argc, char* argv[]) {
+    std::unique_ptr<const traccc::Logger> logger = traccc::getDefaultLogger(
+        "TracccExampleSeqAlpaka", traccc::Logging::Level::INFO);
 
     // Program options.
     traccc::opts::detector detector_opts;
@@ -502,10 +511,10 @@ int main(int argc, char* argv[]) {
         {detector_opts, input_opts, clusterization_opts, seeding_opts,
          finding_opts, propagation_opts, performance_opts, accelerator_opts},
         argc,
-        argv};
+        argv,
+        logger->cloneWithSuffix("Options")};
 
     // Run the application.
     return seq_run(detector_opts, input_opts, clusterization_opts, seeding_opts,
-                   finding_opts, propagation_opts, performance_opts,
-                   accelerator_opts);
+                   performance_opts, accelerator_opts, logger->clone());
 }

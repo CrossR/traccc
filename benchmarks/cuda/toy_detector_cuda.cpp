@@ -1,6 +1,6 @@
 /** TRACCC library, part of the ACTS project (R&D line)
  *
- * (c) 2024 CERN for the benefit of the ACTS project
+ * (c) 2024-2025 CERN for the benefit of the ACTS project
  *
  * Mozilla Public License Version 2.0
  */
@@ -22,11 +22,9 @@
 #include "benchmarks/toy_detector_benchmark.hpp"
 
 // Detray include(s).
-#include <detray/core/detector.hpp>
 #include <detray/detectors/bfield.hpp>
 #include <detray/io/frontend/detector_reader.hpp>
 #include <detray/navigation/navigator.hpp>
-#include <detray/propagator/propagator.hpp>
 #include <detray/propagator/rk_stepper.hpp>
 
 // VecMem include(s).
@@ -39,7 +37,7 @@
 // Google benchmark include(s).
 #include <benchmark/benchmark.h>
 
-BENCHMARK_F(ToyDetectorBenchmark, CUDA)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(ToyDetectorBenchmark, CUDA)(benchmark::State& state) {
 
     // Type declarations
     using rk_stepper_type = detray::rk_stepper<
@@ -109,7 +107,7 @@ BENCHMARK_F(ToyDetectorBenchmark, CUDA)(benchmark::State& state) {
             auto& measurements_per_event = measurements[i_evt];
 
             // Copy the spacepoint and module data to the device.
-            traccc::spacepoint_collection_types::buffer spacepoints_cuda_buffer(
+            traccc::edm::spacepoint_collection::buffer spacepoints_cuda_buffer(
                 static_cast<unsigned int>(spacepoints_per_event.size()),
                 mr.main);
             async_copy.setup(spacepoints_cuda_buffer)->ignore();
@@ -127,13 +125,14 @@ BENCHMARK_F(ToyDetectorBenchmark, CUDA)(benchmark::State& state) {
                 ->ignore();
 
             // Run seeding
-            traccc::seed_collection_types::buffer seeds_cuda_buffer =
+            traccc::edm::seed_collection::buffer seeds_cuda_buffer =
                 sa_cuda(spacepoints_cuda_buffer);
 
             // Run track parameter estimation
             traccc::bound_track_parameters_collection_types::buffer
                 params_cuda_buffer =
-                    tp_cuda(spacepoints_cuda_buffer, seeds_cuda_buffer, B);
+                    tp_cuda(measurements_cuda_buffer, spacepoints_cuda_buffer,
+                            seeds_cuda_buffer, B);
 
             // Run CKF track finding
             traccc::track_candidate_container_types::buffer
@@ -163,3 +162,5 @@ BENCHMARK_F(ToyDetectorBenchmark, CUDA)(benchmark::State& state) {
     state.counters["event_throughput_Hz"] = benchmark::Counter(
         static_cast<double>(n_events), benchmark::Counter::kIsRate);
 }
+
+BENCHMARK_REGISTER_F(ToyDetectorBenchmark, CUDA)->UseRealTime();

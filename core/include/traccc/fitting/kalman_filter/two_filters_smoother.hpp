@@ -11,6 +11,7 @@
 #include "traccc/definitions/qualifiers.hpp"
 #include "traccc/definitions/track_parametrization.hpp"
 #include "traccc/edm/track_state.hpp"
+#include "traccc/fitting/status_codes.hpp"
 
 namespace traccc {
 
@@ -32,10 +33,10 @@ struct two_filters_smoother {
     ///
     /// @return true if the update succeeds
     template <typename mask_group_t, typename index_t>
-    TRACCC_HOST_DEVICE inline bool operator()(
+    [[nodiscard]] TRACCC_HOST_DEVICE inline kalman_fitter_status operator()(
         const mask_group_t& /*mask_group*/, const index_t& /*index*/,
         track_state<algebra_t>& trk_state,
-        bound_track_parameters& bound_params) const {
+        bound_track_parameters<algebra_t>& bound_params) const {
 
         using shape_type = typename mask_group_t::value_type::shape;
 
@@ -47,15 +48,15 @@ struct two_filters_smoother {
             return smoothe<2u, shape_type>(trk_state, bound_params);
         }
 
-        return false;
+        return kalman_fitter_status::ERROR_OTHER;
     }
 
     // Reference: The Optimun Linear Smoother as a Combination of Two Optimum
     // Linear Filters
     template <size_type D, typename shape_t>
-    TRACCC_HOST_DEVICE inline bool smoothe(
+    [[nodiscard]] TRACCC_HOST_DEVICE inline kalman_fitter_status smoothe(
         track_state<algebra_t>& trk_state,
-        bound_track_parameters& bound_params) const {
+        bound_track_parameters<algebra_t>& bound_params) const {
 
         assert(trk_state.filtered().surface_link() ==
                bound_params.surface_link());
@@ -118,6 +119,10 @@ struct two_filters_smoother {
                                            matrix::inverse(R_smt) *
                                            residual_smt;
 
+        if (getter::element(chi2_smt, 0, 0) < 0.f) {
+            return kalman_fitter_status::ERROR_SMOOTHER_CHI2_NEGATIVE;
+        }
+
         trk_state.smoothed_chi2() = getter::element(chi2_smt, 0, 0);
 
         /*************************************
@@ -148,16 +153,27 @@ struct two_filters_smoother {
         const matrix_type<1, 1> chi2 =
             matrix::transpose(residual) * matrix::inverse(R) * residual;
 
-        // Return false if track is parallel to z-axis or phi is not finite
-        const scalar theta = bound_params.theta();
-        if (theta <= 0.f || theta >= constant<traccc::scalar>::pi ||
-            !std::isfinite(bound_params.phi())) {
-            return false;
-        }
-
         // Update the bound track parameters
         bound_params.set_vector(filtered_vec);
         bound_params.set_covariance(filtered_cov);
+
+        // Return false if track is parallel to z-axis or phi is not finite
+        const scalar theta = bound_params.theta();
+        if (theta <= 0.f || theta >= constant<traccc::scalar>::pi) {
+            return kalman_fitter_status::ERROR_THETA_ZERO;
+        }
+
+        if (!std::isfinite(bound_params.phi())) {
+            return kalman_fitter_status::ERROR_INVERSION;
+        }
+
+        if (std::abs(bound_params.qop()) == 0.f) {
+            return kalman_fitter_status::ERROR_QOP_ZERO;
+        }
+
+        if (getter::element(chi2, 0, 0) < 0.f) {
+            return kalman_fitter_status::ERROR_UPDATER_CHI2_NEGATIVE;
+        }
 
         // Set backward chi2
         trk_state.backward_chi2() = getter::element(chi2, 0, 0);
@@ -165,7 +181,8 @@ struct two_filters_smoother {
         // Wrap the phi in the range of [-pi, pi]
         wrap_phi(bound_params);
 
-        return true;
+        trk_state.is_smoothed = true;
+        return kalman_fitter_status::SUCCESS;
     }
 };
 

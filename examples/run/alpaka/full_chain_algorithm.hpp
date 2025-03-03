@@ -24,6 +24,7 @@
 #include "traccc/geometry/detector.hpp"
 #include "traccc/geometry/silicon_detector_description.hpp"
 #include "traccc/utils/algorithm.hpp"
+#include "traccc/utils/messaging.hpp"
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
@@ -46,8 +47,10 @@ namespace traccc::alpaka {
 /// At least as much as is implemented in the project at any given moment.
 ///
 class full_chain_algorithm
-    : public algorithm<::vecmem::vector<fitting_result<default_algebra>>(
-          const edm::silicon_cell_collection::host&)> {
+    : public algorithm<bound_track_parameters_collection_types::host(
+          const cell_collection_types::host&,
+          const cell_module_collection_types::host&)>,
+      public messaging {
 
     public:
     /// @name Type declaration(s)

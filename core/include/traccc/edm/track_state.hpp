@@ -13,37 +13,34 @@
 #include "traccc/edm/container.hpp"
 #include "traccc/edm/measurement.hpp"
 #include "traccc/edm/track_candidate.hpp"
+#include "traccc/edm/track_quality.hpp"
 
 // detray include(s).
 #include <detray/tracks/bound_track_parameters.hpp>
 
 namespace traccc {
 
+enum class fitter_outcome : uint32_t {
+    UNKNOWN,
+    SUCCESS,
+    FAILURE_NON_POSITIVE_NDF,
+    FAILURE_NOT_ALL_SMOOTHED,
+    MAX_OUTCOME
+};
+
 /// Fitting result per track
 template <typename algebra_t>
 struct fitting_result {
     using scalar_type = detray::dscalar<algebra_t>;
 
+    /// Fitting outcome
+    fitter_outcome fit_outcome = fitter_outcome::UNKNOWN;
+
     /// Fitted track parameter
-    detray::bound_track_parameters<algebra_t> fit_params;
+    traccc::bound_track_parameters<algebra_t> fit_params;
 
-    /// Number of degree of freedoms of fitted track
-    scalar_type ndf{0};
-
-    /// Chi square of fitted track
-    scalar_type chi2{0};
-
-    // The number of holes (The number of sensitive surfaces which do not have a
-    // measurement for the track pattern)
-    unsigned int n_holes{0u};
-
-    /// Reset the statistics
-    TRACCC_HOST_DEVICE
-    void reset_statistics() {
-        ndf = 0.f;
-        chi2 = 0.f;
-        n_holes = 0u;
-    }
+    /// Track quality
+    traccc::track_quality trk_quality;
 };
 
 /// Fitting result per measurement
@@ -54,8 +51,8 @@ struct track_state {
     using size_type = detray::dsize_type<algebra_t>;
 
     using bound_track_parameters_type =
-        detray::bound_track_parameters<algebra_t>;
-    using bound_matrix = detray::bound_matrix<algebra_t>;
+        traccc::bound_track_parameters<algebra_t>;
+    using bound_matrix_type = traccc::bound_matrix<algebra_t>;
     template <size_type ROWS, size_type COLS>
     using matrix_type = detray::dmatrix<algebra_t, ROWS, COLS>;
 
@@ -153,11 +150,11 @@ struct track_state {
 
     /// @return the non-const transport jacobian
     TRACCC_HOST_DEVICE
-    inline bound_matrix& jacobian() { return m_jacobian; }
+    inline bound_matrix_type& jacobian() { return m_jacobian; }
 
     /// @return the const transport jacobian
     TRACCC_HOST_DEVICE
-    inline const bound_matrix& jacobian() const { return m_jacobian; }
+    inline const bound_matrix_type& jacobian() const { return m_jacobian; }
 
     /// @return the non-const chi square of filtered parameter
     TRACCC_HOST_DEVICE
@@ -205,11 +202,12 @@ struct track_state {
 
     public:
     bool is_hole{true};
+    bool is_smoothed{false};
 
     private:
     detray::geometry::barcode m_surface_link;
     measurement m_measurement;
-    bound_matrix m_jacobian = matrix::zero<bound_matrix>();
+    bound_matrix_type m_jacobian = matrix::zero<bound_matrix_type>();
     bound_track_parameters_type m_predicted;
     scalar_type m_filtered_chi2 = 0.f;
     bound_track_parameters_type m_filtered;
@@ -226,5 +224,20 @@ using track_state_collection_types =
 using track_state_container_types =
     container_types<fitting_result<default_algebra>,
                     track_state<default_algebra>>;
+
+inline std::size_t count_fitted_tracks(
+    const track_state_container_types::host& track_states) {
+
+    const std::size_t n_tracks = track_states.size();
+    std::size_t n_fitted_tracks = 0u;
+
+    for (std::size_t i = 0; i < n_tracks; i++) {
+        if (track_states.at(i).header.fit_outcome == fitter_outcome::SUCCESS) {
+            n_fitted_tracks++;
+        }
+    }
+
+    return n_fitted_tracks;
+}
 
 }  // namespace traccc

@@ -78,7 +78,7 @@ TEST_P(KalmanFittingTelescopeTests, Run) {
 
     // Track generator
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
     generator_type::configuration gen_cfg{};
     gen_cfg.n_tracks(n_truth_tracks);
@@ -149,9 +149,11 @@ TEST_P(KalmanFittingTelescopeTests, Run) {
 
         // Iterator over tracks
         const std::size_t n_tracks = track_states.size();
+        const std::size_t n_fitted_tracks = count_fitted_tracks(track_states);
 
         // n_trakcs = 100
         ASSERT_EQ(n_tracks, n_truth_tracks);
+        ASSERT_EQ(n_tracks, n_fitted_tracks);
 
         for (std::size_t i_trk = 0; i_trk < n_tracks; i_trk++) {
 
@@ -162,7 +164,7 @@ TEST_P(KalmanFittingTelescopeTests, Run) {
 
             ndf_tests(fit_res, track_states_per_track);
 
-            ASSERT_EQ(fit_res.n_holes, 0u);
+            ASSERT_EQ(fit_res.trk_quality.n_holes, 0u);
 
             fit_performance_writer.write(track_states_per_track, fit_res,
                                          host_det, evt_data);

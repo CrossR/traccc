@@ -20,6 +20,7 @@
 
 // Project include(s).
 #include "traccc/fitting/kalman_filter/gain_matrix_updater.hpp"
+#include "traccc/fitting/status_codes.hpp"
 
 // Detray include(s)
 #include <detray/geometry/tracking_surface.hpp>
@@ -194,7 +195,7 @@ TRACCC_HOST_DEVICE inline void find_tracks(
                 owner_local_thread_id +
                 thread_id.getBlockDimX() * thread_id.getBlockIdX();
             assert(in_params_liveness.at(owner_global_thread_id) != 0u);
-            const bound_track_parameters& in_par =
+            const bound_track_parameters<>& in_par =
                 in_params.at(owner_global_thread_id);
             const unsigned int meas_idx =
                 shared_payload.shared_candidates[thread_id.getLocalThreadIdX()]
@@ -206,14 +207,19 @@ TRACCC_HOST_DEVICE inline void find_tracks(
             const detray::tracking_surface sf{det, in_par.surface_link()};
 
             // Run the Kalman update
-            const bool res = sf.template visit_mask<
+            const kalman_fitter_status res = sf.template visit_mask<
                 gain_matrix_updater<typename detector_t::algebra_type>>(
                 trk_state, in_par);
 
+            const traccc::scalar chi2 = trk_state.filtered_chi2();
+
             // The chi2 from Kalman update should be less than chi2_max
-            if (res && trk_state.filtered_chi2() < cfg.chi2_max) {
+            if (res == kalman_fitter_status::SUCCESS &&
+                trk_state.filtered_chi2() < cfg.chi2_max) {
                 // Add measurement candidates to link
                 const unsigned int l_pos = num_total_candidates.fetch_add(1);
+
+                assert(trk_state.filtered_chi2() >= 0.f);
 
                 if (l_pos >= payload.n_max_candidates) {
                     *payload.n_total_candidates = payload.n_max_candidates;
@@ -223,7 +229,8 @@ TRACCC_HOST_DEVICE inline void find_tracks(
                             {previous_step, owner_global_thread_id},
                             meas_idx,
                             owner_global_thread_id,
-                            0};
+                            0,
+                            chi2};
                     } else {
                         const candidate_link& prev_link =
                             prev_links[owner_global_thread_id];
@@ -232,7 +239,8 @@ TRACCC_HOST_DEVICE inline void find_tracks(
                             {previous_step, owner_global_thread_id},
                             meas_idx,
                             prev_link.seed_idx,
-                            prev_link.n_skipped};
+                            prev_link.n_skipped,
+                            chi2};
                     }
 
                     // Increase the number of candidates (or branches) per input
@@ -289,14 +297,16 @@ TRACCC_HOST_DEVICE inline void find_tracks(
                 links.at(l_pos) = {{previous_step, in_param_id},
                                    std::numeric_limits<unsigned int>::max(),
                                    in_param_id,
-                                   1};
+                                   1,
+                                   std::numeric_limits<traccc::scalar>::max()};
             } else {
                 const candidate_link& prev_link = prev_links[in_param_id];
 
                 links.at(l_pos) = {{previous_step, in_param_id},
                                    std::numeric_limits<unsigned int>::max(),
                                    prev_link.seed_idx,
-                                   prev_link.n_skipped + 1};
+                                   prev_link.n_skipped + 1,
+                                   std::numeric_limits<traccc::scalar>::max()};
             }
 
             out_params.at(l_pos) = in_params.at(in_param_id);

@@ -1,6 +1,6 @@
 /** TRACCC library, part of the ACTS project (R&D line)
  *
- * (c) 2022 CERN for the benefit of the ACTS project
+ * (c) 2022-2025 CERN for the benefit of the ACTS project
  *
  * Mozilla Public License Version 2.0
  */
@@ -38,29 +38,11 @@ struct projector<traccc::measurement> {
     }
 };
 
-template <>
-struct projector<traccc::spacepoint> {
+template <detray::concepts::algebra algebra_t>
+struct projector<traccc::bound_track_parameters<algebra_t>> {
     static constexpr bool exists = true;
 
-    float operator()(const traccc::spacepoint& i) {
-        return static_cast<float>(i.x());
-    }
-};
-
-template <>
-struct projector<traccc::seed> {
-    static constexpr bool exists = true;
-
-    float operator()(const traccc::seed& i) {
-        return static_cast<float>(i.z_vertex);
-    }
-};
-
-template <>
-struct projector<traccc::bound_track_parameters> {
-    static constexpr bool exists = true;
-
-    float operator()(const traccc::bound_track_parameters& i) {
+    float operator()(const traccc::bound_track_parameters<algebra_t>& i) {
         return static_cast<float>(i.phi());
     }
 };
@@ -70,7 +52,7 @@ struct projector<fitting_result<traccc::default_algebra>> {
     static constexpr bool exists = true;
 
     float operator()(const fitting_result<traccc::default_algebra>& i) {
-        return static_cast<float>(i.ndf);
+        return static_cast<float>(i.trk_quality.ndf);
     }
 };
 }  // namespace traccc::details

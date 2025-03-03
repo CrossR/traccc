@@ -79,7 +79,7 @@ TEST_P(KalmanFittingHoleCountTests, Run) {
 
     // Track generator
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
     generator_type::configuration gen_cfg{};
     gen_cfg.n_tracks(n_truth_tracks);
@@ -169,11 +169,11 @@ TEST_P(KalmanFittingHoleCountTests, Run) {
     // The three holes at the end are not counted as KF aborts once it goes
     // through all track candidates
     const auto& fit_res = track_states.at(0u).header;
-    ASSERT_EQ(fit_res.n_holes, 5u);
+    ASSERT_EQ(fit_res.trk_quality.n_holes, 5u);
 
     // Some sanity checks
     ASSERT_FLOAT_EQ(
-        static_cast<float>(fit_res.ndf),
+        static_cast<float>(fit_res.trk_quality.ndf),
         static_cast<float>(track_states.at(0u).items.size()) * 2.f - 5.f);
 }
 

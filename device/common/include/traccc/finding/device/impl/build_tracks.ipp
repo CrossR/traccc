@@ -36,7 +36,8 @@ TRACCC_HOST_DEVICE inline void build_tracks(
     }
 
     const auto tip = tips.at(globalIndex);
-    auto& seed = track_candidates[globalIndex].header;
+    auto& seed = track_candidates[globalIndex].header.seed_params;
+    auto& trk_quality = track_candidates[globalIndex].header.trk_quality;
     auto cands_per_track = track_candidates[globalIndex].items;
 
     // Get the link corresponding to tip
@@ -67,6 +68,12 @@ TRACCC_HOST_DEVICE inline void build_tracks(
 
     bool success = true;
 
+    // Track summary variables
+    scalar ndf_sum = 0.f;
+    scalar chi2_sum = 0.f;
+
+    [[maybe_unused]] std::size_t num_inserted = 0;
+
     // Reversely iterate to fill the track candidates
     for (auto it = cands_per_track.rbegin(); it != cands_per_track.rend();
          it++) {
@@ -86,15 +93,44 @@ TRACCC_HOST_DEVICE inline void build_tracks(
         }
 
         *it = {measurements.at(L.meas_idx)};
+        num_inserted++;
+
+        // Sanity check on chi2
+        assert(L.chi2 < std::numeric_limits<traccc::scalar>::max());
+        assert(L.chi2 >= 0.f);
+
+        ndf_sum += static_cast<scalar>(it->meas_dim);
+        chi2_sum += L.chi2;
 
         // Break the loop if the iterator is at the first candidate and fill the
-        // seed
+        // seed and track quality
         if (it == cands_per_track.rend() - 1) {
             seed = seeds.at(L.previous.second);
+            trk_quality.ndf = ndf_sum - 5.f;
+            trk_quality.chi2 = chi2_sum;
+            trk_quality.n_holes = L.n_skipped;
         } else {
             L = links[L.previous.first][L.previous.second];
         }
     }
+
+#ifndef NDEBUG
+    if (success) {
+        // Assert that we inserted exactly as many elements as we reserved
+        // space for.
+        assert(num_inserted == cands_per_track.size());
+
+        // Assert that we did not make any duplicate track states.
+        for (unsigned int i = 0; i < cands_per_track.size(); ++i) {
+            for (unsigned int j = 0; j < cands_per_track.size(); ++j) {
+                if (i != j) {
+                    assert(cands_per_track.at(i).measurement_id !=
+                           cands_per_track.at(j).measurement_id);
+                }
+            }
+        }
+    }
+#endif
 
     // NOTE: We may at some point want to assert that `success` is true
 

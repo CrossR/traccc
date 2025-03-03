@@ -44,6 +44,10 @@ namespace po = boost::program_options;
 // The main routine
 //
 int main(int argc, char* argv[]) {
+    std::unique_ptr<const traccc::Logger> ilogger = traccc::getDefaultLogger(
+        "TracccExampleTruthFitting", traccc::Logging::Level::INFO);
+
+    TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
     // Program options.
     traccc::opts::detector detector_opts;
@@ -56,7 +60,8 @@ int main(int argc, char* argv[]) {
         {detector_opts, input_opts, propagation_opts, fitting_opts,
          performance_opts},
         argc,
-        argv};
+        argv,
+        logger().cloneWithSuffix("Options")};
 
     /// Type declarations
     using host_detector_type = traccc::default_detector::host;
@@ -109,7 +114,8 @@ int main(int argc, char* argv[]) {
     traccc::fitting_config fit_cfg(fitting_opts);
     fit_cfg.propagation = propagation_opts;
 
-    traccc::host::kalman_fitting_algorithm host_fitting(fit_cfg, host_mr);
+    traccc::host::kalman_fitting_algorithm host_fitting(
+        fit_cfg, host_mr, logger().clone("FittingAlg"));
 
     // Seed generator
     traccc::seed_generator<host_detector_type> sg(host_det, stddevs);
@@ -130,8 +136,9 @@ int main(int argc, char* argv[]) {
         auto track_states = host_fitting(
             host_det, field, traccc::get_data(truth_track_candidates));
 
-        std::cout << "Number of fitted tracks: " << track_states.size()
-                  << std::endl;
+        std::cout << "Number of fitted tracks: ( "
+                  << count_fitted_tracks(track_states) << " / "
+                  << track_states.size() << " ) " << std::endl;
 
         const decltype(track_states)::size_type n_fitted_tracks =
             track_states.size();

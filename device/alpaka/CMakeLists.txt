@@ -30,29 +30,21 @@ traccc_add_alpaka_library( traccc_alpaka alpaka TYPE SHARED
   "include/traccc/alpaka/utils/make_prefix_sum_buff.hpp"
   "src/utils/make_prefix_sum_buff.cpp"
   "src/utils/get_device_info.cpp"
-  "src/utils/barrier.hpp"
-  "src/utils/utils.hpp"
-  # Seed finding code.
-  "include/traccc/alpaka/seeding/track_params_estimation.hpp"
-  "include/traccc/alpaka/seeding/seed_finding.hpp"
-  "include/traccc/alpaka/seeding/seeding_algorithm.hpp"
-  "include/traccc/alpaka/seeding/spacepoint_binning.hpp"
-  # CCL Code.
-  "src/seeding/track_params_estimation.cpp"
-  "src/seeding/seed_finding.cpp"
-  "src/seeding/spacepoint_binning.cpp"
-  "src/seeding/seeding_algorithm.cpp"
   # Clusterization
   "include/traccc/alpaka/clusterization/clusterization_algorithm.hpp"
   "src/clusterization/clusterization_algorithm.cpp"
   "include/traccc/alpaka/clusterization/measurement_sorting_algorithm.hpp"
   "src/clusterization/measurement_sorting_algorithm.cpp"
+  # Seeding code
   "include/traccc/alpaka/seeding/spacepoint_formation_algorithm.hpp"
   "src/seeding/spacepoint_formation_algorithm.cpp"
-  # Seeding code
+  "include/traccc/alpaka/seeding/details/spacepoint_binning.hpp"
   "src/seeding/spacepoint_binning.cpp"
+  "include/traccc/alpaka/seeding/details/seed_finding.hpp"
   "src/seeding/seed_finding.cpp"
+  "include/traccc/alpaka/seeding/seeding_algorithm.hpp"
   "src/seeding/seeding_algorithm.cpp"
+  "include/traccc/alpaka/seeding/track_params_estimation.hpp"
   "src/seeding/track_params_estimation.cpp"
   # Finding
   "include/traccc/alpaka/finding/finding_algorithm.hpp"

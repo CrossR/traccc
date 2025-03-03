@@ -38,6 +38,8 @@ using namespace traccc;
 // The main routine
 //
 int main(int argc, char* argv[]) {
+    std::unique_ptr<const traccc::Logger> logger = traccc::getDefaultLogger(
+        "TracccExampleSimulate", traccc::Logging::Level::INFO);
 
     // Program options.
     traccc::opts::detector det_opts;
@@ -48,7 +50,8 @@ int main(int argc, char* argv[]) {
         "Detector Simulation",
         {det_opts, generation_opts, output_opts, propagation_opts},
         argc,
-        argv};
+        argv,
+        logger->cloneWithSuffix("Options")};
 
     /// Type declarations
     using host_detector_type = traccc::default_detector::host;
@@ -56,7 +59,7 @@ int main(int argc, char* argv[]) {
         detray::detail::random_numbers<scalar,
                                        std::uniform_real_distribution<scalar>>;
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
 
     // B field value and its type

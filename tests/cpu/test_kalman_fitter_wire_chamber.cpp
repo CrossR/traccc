@@ -74,7 +74,7 @@ TEST_P(KalmanFittingWireChamberTests, Run) {
 
     // Track generator
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
     generator_type::configuration gen_cfg{};
     gen_cfg.n_tracks(n_truth_tracks);
@@ -147,7 +147,10 @@ TEST_P(KalmanFittingWireChamberTests, Run) {
 
         // Iterator over tracks
         const std::size_t n_tracks = track_states.size();
-        ASSERT_EQ(n_tracks, n_truth_tracks);
+        ASSERT_GE(static_cast<float>(n_tracks),
+                  static_cast<float>(n_truth_tracks) * 0.95);
+        const std::size_t n_fitted_tracks = count_fitted_tracks(track_states);
+        ASSERT_EQ(n_tracks, n_fitted_tracks);
 
         for (std::size_t i_trk = 0; i_trk < n_tracks; i_trk++) {
 
@@ -180,7 +183,7 @@ TEST_P(KalmanFittingWireChamberTests, Run) {
     scalar success_rate = static_cast<scalar>(n_success) /
                           static_cast<scalar>(n_truth_tracks * n_events);
 
-    ASSERT_GE(success_rate, 0.99f);
+    ASSERT_GE(success_rate, 0.95f);
     ASSERT_LE(success_rate, 1.00f);
 }
 

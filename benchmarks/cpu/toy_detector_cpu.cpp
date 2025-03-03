@@ -1,6 +1,6 @@
 /** TRACCC library, part of the ACTS project (R&D line)
  *
- * (c) 2024 CERN for the benefit of the ACTS project
+ * (c) 2024-2025 CERN for the benefit of the ACTS project
  *
  * Mozilla Public License Version 2.0
  */
@@ -24,12 +24,8 @@
 #include "benchmarks/toy_detector_benchmark.hpp"
 
 // Detray include(s).
-#include <detray/core/detector.hpp>
 #include <detray/detectors/bfield.hpp>
 #include <detray/io/frontend/detector_reader.hpp>
-#include <detray/navigation/navigator.hpp>
-#include <detray/propagator/propagator.hpp>
-#include <detray/propagator/rk_stepper.hpp>
 
 // VecMem include(s).
 #include <vecmem/memory/host_memory_resource.hpp>
@@ -37,7 +33,7 @@
 // Google benchmark include(s).
 #include <benchmark/benchmark.h>
 
-BENCHMARK_F(ToyDetectorBenchmark, CPU)(benchmark::State& state) {
+BENCHMARK_DEFINE_F(ToyDetectorBenchmark, CPU)(benchmark::State& state) {
 
     // Type declarations
     using host_detector_type = traccc::default_detector::host;
@@ -53,8 +49,9 @@ BENCHMARK_F(ToyDetectorBenchmark, CPU)(benchmark::State& state) {
     auto field = detray::bfield::create_const_field<scalar_type>(B);
 
     // Algorithms
-    traccc::seeding_algorithm sa(seeding_cfg, grid_cfg, filter_cfg, host_mr);
-    traccc::track_params_estimation tp(host_mr);
+    traccc::host::seeding_algorithm sa(seeding_cfg, grid_cfg, filter_cfg,
+                                       host_mr);
+    traccc::host::track_params_estimation tp(host_mr);
     traccc::host::combinatorial_kalman_filter_algorithm host_finding(
         finding_cfg);
     traccc::host::kalman_fitting_algorithm host_fitting(fitting_cfg, host_mr);
@@ -69,10 +66,12 @@ BENCHMARK_F(ToyDetectorBenchmark, CPU)(benchmark::State& state) {
             auto& measurements_per_event = measurements[i_evt];
 
             // Seeding
-            auto seeds = sa(spacepoints_per_event);
+            auto seeds = sa(vecmem::get_data(spacepoints_per_event));
 
             // Track param estimation
-            auto params = tp(spacepoints_per_event, seeds, B);
+            auto params = tp(vecmem::get_data(measurements_per_event),
+                             vecmem::get_data(spacepoints_per_event),
+                             vecmem::get_data(seeds), B);
 
             // Track finding with CKF
             auto track_candidates = host_finding(
@@ -88,3 +87,5 @@ BENCHMARK_F(ToyDetectorBenchmark, CPU)(benchmark::State& state) {
     state.counters["event_throughput_Hz"] = benchmark::Counter(
         static_cast<double>(n_events), benchmark::Counter::kIsRate);
 }
+
+BENCHMARK_REGISTER_F(ToyDetectorBenchmark, CPU)->UseRealTime();

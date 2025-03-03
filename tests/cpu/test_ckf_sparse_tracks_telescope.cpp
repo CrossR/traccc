@@ -81,7 +81,7 @@ TEST_P(CkfSparseTrackTelescopeTests, Run) {
 
     // Track generator
     using generator_type =
-        detray::random_track_generator<traccc::free_track_parameters,
+        detray::random_track_generator<traccc::free_track_parameters<>,
                                        uniform_gen_t>;
     generator_type::configuration gen_cfg{};
     gen_cfg.n_tracks(n_truth_tracks);
@@ -159,7 +159,8 @@ TEST_P(CkfSparseTrackTelescopeTests, Run) {
         // Prepare truth seeds
         traccc::bound_track_parameters_collection_types::host seeds(&host_mr);
         for (unsigned int i_trk = 0; i_trk < n_truth_tracks; i_trk++) {
-            seeds.push_back(truth_track_candidates.at(i_trk).header);
+            seeds.push_back(
+                truth_track_candidates.at(i_trk).header.seed_params);
         }
         ASSERT_EQ(seeds.size(), n_truth_tracks);
 
@@ -175,11 +176,23 @@ TEST_P(CkfSparseTrackTelescopeTests, Run) {
 
         ASSERT_EQ(track_candidates.size(), n_truth_tracks);
 
+        for (unsigned int i_trk = 0; i_trk < n_truth_tracks; i_trk++) {
+            const auto& track_candidates_per_track =
+                track_candidates[i_trk].items;
+            const auto& find_res = track_candidates[i_trk].header;
+
+            consistency_tests(track_candidates_per_track);
+
+            ndf_tests(find_res, track_candidates_per_track);
+        }
+
         // Run fitting
         auto track_states =
             host_fitting(host_det, field, traccc::get_data(track_candidates));
+        const std::size_t n_fitted_tracks = count_fitted_tracks(track_states);
 
         ASSERT_EQ(track_states.size(), n_truth_tracks);
+        ASSERT_EQ(track_states.size(), n_fitted_tracks);
 
         for (unsigned int i_trk = 0; i_trk < n_truth_tracks; i_trk++) {
 

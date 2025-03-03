@@ -70,7 +70,9 @@ int seq_run(const traccc::opts::input_data& input_opts,
             const traccc::opts::track_propagation& propagation_opts,
             const traccc::opts::track_fitting& fitting_opts,
             const traccc::opts::track_resolution& resolution_opts,
-            const traccc::opts::performance& performance_opts) {
+            const traccc::opts::performance& performance_opts,
+            std::unique_ptr<const traccc::Logger> ilogger) {
+    TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
     // Memory resource used by the application.
     vecmem::host_memory_resource host_mr;
@@ -124,16 +126,23 @@ int seq_run(const traccc::opts::input_data& input_opts,
     fitting_cfg.propagation = propagation_config;
 
     // Algorithms
-    traccc::host::sparse_ccl_algorithm cc(host_mr);
-    traccc::host::measurement_creation_algorithm mc(host_mr);
-    spacepoint_formation_algorithm sf(host_mr);
-    traccc::seeding_algorithm sa(seeding_opts.seedfinder,
-                                 {seeding_opts.seedfinder},
-                                 seeding_opts.seedfilter, host_mr);
-    traccc::track_params_estimation tp(host_mr);
-    finding_algorithm finding_alg(finding_cfg);
-    fitting_algorithm fitting_alg(fitting_cfg, host_mr);
-    traccc::greedy_ambiguity_resolution_algorithm resolution_alg;
+    traccc::host::sparse_ccl_algorithm cc(host_mr,
+                                          logger().clone("SparseCclAlg"));
+    traccc::host::measurement_creation_algorithm mc(
+        host_mr, logger().clone("MeasCreationAlg"));
+    spacepoint_formation_algorithm sf(host_mr,
+                                      logger().clone("SpFormationAlg"));
+    traccc::host::seeding_algorithm sa(
+        seeding_opts.seedfinder, {seeding_opts.seedfinder},
+        seeding_opts.seedfilter, host_mr, logger().clone("SeedingAlg"));
+    traccc::host::track_params_estimation tp(host_mr,
+                                             logger().clone("TrackParEstAlg"));
+    finding_algorithm finding_alg(finding_cfg, logger().clone("FindingAlg"));
+    fitting_algorithm fitting_alg(fitting_cfg, host_mr,
+                                  logger().clone("FittingAlg"));
+    traccc::greedy_ambiguity_resolution_algorithm::config_t resolution_config;
+    traccc::greedy_ambiguity_resolution_algorithm resolution_alg(
+        resolution_config, logger().clone("AmbiguityResolutionAlg"));
 
     // performance writer
     traccc::seeding_performance_writer sd_performance_writer(
@@ -160,9 +169,9 @@ int seq_run(const traccc::opts::input_data& input_opts,
         traccc::host::measurement_creation_algorithm::output_type
             measurements_per_event{&host_mr};
         spacepoint_formation_algorithm::output_type spacepoints_per_event{
-            &host_mr};
-        traccc::seeding_algorithm::output_type seeds{&host_mr};
-        traccc::track_params_estimation::output_type params{&host_mr};
+            host_mr};
+        traccc::host::seeding_algorithm::output_type seeds{host_mr};
+        traccc::host::track_params_estimation::output_type params{&host_mr};
         finding_algorithm::output_type track_candidates{&host_mr};
         fitting_algorithm::output_type track_states{&host_mr};
         traccc::greedy_ambiguity_resolution_algorithm::output_type
@@ -175,10 +184,10 @@ int seq_run(const traccc::opts::input_data& input_opts,
                 traccc::performance::timer timer{"Read cells", elapsedTimes};
                 // Read the cells from the relevant event file
                 static constexpr bool DEDUPLICATE = true;
-                traccc::io::read_cells(cells_per_event, event,
-                                       input_opts.directory, &det_descr,
-                                       input_opts.format, DEDUPLICATE,
-                                       input_opts.use_acts_geom_source);
+                traccc::io::read_cells(
+                    cells_per_event, event, input_opts.directory,
+                    logger().clone(), &det_descr, input_opts.format,
+                    DEDUPLICATE, input_opts.use_acts_geom_source);
             }
 
             /*-------------------
@@ -212,7 +221,8 @@ int seq_run(const traccc::opts::input_data& input_opts,
                 if (output_opts.directory != "") {
                     traccc::io::write(event, output_opts.directory,
                                       output_opts.format,
-                                      vecmem::get_data(spacepoints_per_event));
+                                      vecmem::get_data(spacepoints_per_event),
+                                      vecmem::get_data(measurements_per_event));
                 }
 
                 /*-----------------------
@@ -221,7 +231,7 @@ int seq_run(const traccc::opts::input_data& input_opts,
 
                 {
                     traccc::performance::timer timer{"Seeding", elapsedTimes};
-                    seeds = sa(spacepoints_per_event);
+                    seeds = sa(vecmem::get_data(spacepoints_per_event));
                 }
                 if (output_opts.directory != "") {
                     traccc::io::write(event, output_opts.directory,
@@ -237,7 +247,9 @@ int seq_run(const traccc::opts::input_data& input_opts,
                 {
                     traccc::performance::timer timer{"Track params estimation",
                                                      elapsedTimes};
-                    params = tp(spacepoints_per_event, seeds, field_vec);
+                    params = tp(vecmem::get_data(measurements_per_event),
+                                vecmem::get_data(spacepoints_per_event),
+                                vecmem::get_data(seeds), field_vec);
                 }
 
                 {
@@ -294,9 +306,10 @@ int seq_run(const traccc::opts::input_data& input_opts,
             evt_data.fill_cca_result(cells_per_event, clusters_per_event,
                                      measurements_per_event, det_descr);
 
-            sd_performance_writer.write(vecmem::get_data(seeds),
-                                        vecmem::get_data(spacepoints_per_event),
-                                        evt_data);
+            sd_performance_writer.write(
+                vecmem::get_data(seeds),
+                vecmem::get_data(spacepoints_per_event),
+                vecmem::get_data(measurements_per_event), evt_data);
             find_performance_writer.write(traccc::get_data(track_candidates),
                                           evt_data);
 
@@ -344,6 +357,8 @@ int seq_run(const traccc::opts::input_data& input_opts,
 // The main routine
 //
 int main(int argc, char* argv[]) {
+    std::unique_ptr<const traccc::Logger> logger = traccc::getDefaultLogger(
+        "TracccExampleSeqCpu", traccc::Logging::Level::INFO);
 
     // Program options.
     traccc::opts::detector detector_opts;
@@ -362,10 +377,11 @@ int main(int argc, char* argv[]) {
          seeding_opts, finding_opts, propagation_opts, resolution_opts,
          performance_opts},
         argc,
-        argv};
+        argv,
+        logger->cloneWithSuffix("Options")};
 
     // Run the application.
     return seq_run(input_opts, output_opts, detector_opts, clusterization_opts,
                    seeding_opts, finding_opts, propagation_opts, fitting_opts,
-                   resolution_opts, performance_opts);
+                   resolution_opts, performance_opts, logger->clone());
 }
