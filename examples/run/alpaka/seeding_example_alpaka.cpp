@@ -44,7 +44,6 @@
 #include "traccc/seeding/track_params_estimation.hpp"
 
 // Detray include(s).
-#include <detray/core/detector.hpp>
 #include <detray/detectors/bfield.hpp>
 #include <detray/io/frontend/detector_reader.hpp>
 #include <detray/navigation/navigator.hpp>
@@ -144,6 +143,18 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                               detector_opts.material_file,
                               detector_opts.grid_file);
 
+    // Detector view object
+    traccc::default_detector::view det_view = detray::get_data(host_det);
+
+    // Copy objects
+    traccc::device::container_d2h_copy_alg<
+        traccc::track_candidate_container_types>
+        track_candidate_d2h{mr, copy,
+                            logger().clone("TrackCandidateD2HCopyAlg")};
+
+    traccc::device::container_d2h_copy_alg<traccc::track_state_container_types>
+        track_state_d2h{mr, copy, logger().clone("TrackStateD2HCopyAlg")};
+
     // Seeding algorithms
     traccc::host::seeding_algorithm sa(
         seeding_opts.seedfinder, {seeding_opts.seedfinder},
@@ -192,7 +203,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
         traccc::edm::spacepoint_collection::host spacepoints_per_event{host_mr};
         traccc::measurement_collection_types::host measurements_per_event{
             &host_mr};
-
         traccc::host::seeding_algorithm::output_type seeds{host_mr};
         traccc::host::track_params_estimation::output_type params;
         traccc::track_candidate_container_types::host track_candidates;
@@ -240,13 +250,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     mr.main);
             copy(vecmem::get_data(spacepoints_per_event),
                  spacepoints_alpaka_buffer)
-                ->wait();
-            traccc::measurement_collection_types::buffer
-                measurements_alpaka_buffer(
-                    static_cast<unsigned int>(measurements_per_event.size()),
-                    mr.main);
-            copy(vecmem::get_data(measurements_per_event),
-                 measurements_alpaka_buffer)
                 ->wait();
 
             traccc::measurement_collection_types::buffer

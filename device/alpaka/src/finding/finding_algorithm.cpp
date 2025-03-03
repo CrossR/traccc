@@ -55,8 +55,8 @@ namespace traccc::alpaka {
 template <typename stepper_t, typename navigator_t>
 finding_algorithm<stepper_t, navigator_t>::finding_algorithm(
     const config_type& cfg, const traccc::memory_resource& mr,
-    vecmem::copy& copy)
-    : m_cfg(cfg), m_mr(mr), m_copy(copy){};
+    vecmem::copy& copy, std::unique_ptr<const Logger> logger)
+    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy) {}
 
 template <typename stepper_t, typename navigator_t>
 track_candidate_container_types::buffer

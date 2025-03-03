@@ -15,7 +15,7 @@
 namespace traccc::alpaka {
 
 full_chain_algorithm::full_chain_algorithm(
-    ::vecmem::memory_resource& host_mr,
+    vecmem::memory_resource& host_mr,
     const clustering_config& clustering_config,
     const seedfinder_config& finder_config,
     const spacepoint_grid_config& grid_config,
@@ -23,8 +23,9 @@ full_chain_algorithm::full_chain_algorithm(
     const finding_algorithm::config_type& finding_config,
     const fitting_algorithm::config_type& fitting_config,
     const silicon_detector_description::host& det_descr,
-    host_detector_type* detector)
-    : m_host_mr(host_mr),
+    host_detector_type* detector, std::unique_ptr<const traccc::Logger> logger)
+    : messaging(std::move(logger->clone())),
+      m_host_mr(host_mr),
 #if defined(ALPAKA_ACC_GPU_CUDA_ENABLED) || defined(ALPAKA_ACC_GPU_HIP_ENABLED)
       m_device_mr(),
 #else
@@ -45,17 +46,21 @@ full_chain_algorithm::full_chain_algorithm(
       m_detector(detector),
       m_clusterization(memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
                        clustering_config),
-      m_measurement_sorting(m_copy),
+      m_measurement_sorting(m_copy, logger->cloneWithSuffix("MeasSortingAlg")),
       m_spacepoint_formation(memory_resource{*m_cached_device_mr, &m_host_mr},
-                             m_copy),
+                             m_copy, logger->cloneWithSuffix("SpFormationAlg")),
       m_seeding(finder_config, grid_config, filter_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                logger->cloneWithSuffix("SeedingAlg")),
       m_track_parameter_estimation(
-          memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+          memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+          logger->cloneWithSuffix("TrackParamEstAlg")),
       m_finding(finding_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                logger->cloneWithSuffix("TrackFindingAlg")),
       m_fitting(fitting_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                logger->cloneWithSuffix("TrackFittingAlg")),
       m_clustering_config(clustering_config),
       m_finder_config(finder_config),
       m_grid_config(grid_config),
@@ -75,7 +80,8 @@ full_chain_algorithm::full_chain_algorithm(
 }
 
 full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
-    : m_host_mr(parent.m_host_mr),
+    : messaging(parent.logger().clone()),
+      m_host_mr(parent.m_host_mr),
 #if defined(ALPAKA_ACC_GPU_CUDA_ENABLED) || defined(ALPAKA_ACC_GPU_HIP_ENABLED)
       m_device_mr(),
 #else
@@ -94,18 +100,24 @@ full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
       m_detector(parent.m_detector),
       m_clusterization(memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
                        parent.m_clustering_config),
-      m_measurement_sorting(m_copy),
+      m_measurement_sorting(m_copy,
+                            parent.logger().cloneWithSuffix("MeasSortingAlg")),
       m_spacepoint_formation(memory_resource{*m_cached_device_mr, &m_host_mr},
-                             m_copy),
+                             m_copy,
+                             parent.logger().cloneWithSuffix("SpFormationAlg")),
       m_seeding(parent.m_finder_config, parent.m_grid_config,
                 parent.m_filter_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                parent.logger().cloneWithSuffix("SeedingAlg")),
       m_track_parameter_estimation(
-          memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+          memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+          parent.logger().cloneWithSuffix("TrackParamEstAlg")),
       m_finding(parent.m_finding_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                parent.logger().cloneWithSuffix("TrackFindingAlg")),
       m_fitting(parent.m_fitting_config,
-                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy),
+                memory_resource{*m_cached_device_mr, &m_host_mr}, m_copy,
+                parent.logger().cloneWithSuffix("TrackFittingAlg")),
       m_clustering_config(parent.m_clustering_config),
       m_finder_config(parent.m_finder_config),
       m_grid_config(parent.m_grid_config),
@@ -144,8 +156,8 @@ full_chain_algorithm::output_type full_chain_algorithm::operator()(
         const spacepoint_formation_algorithm::output_type spacepoints =
             m_spacepoint_formation(m_device_detector_view, measurements);
         const track_params_estimation::output_type track_params =
-            m_track_parameter_estimation(spacepoints, m_seeding(spacepoints),
-                                         m_field_vec);
+            m_track_parameter_estimation(measurements, spacepoints,
+                                         m_seeding(spacepoints), m_field_vec);
 
         // Run the track finding.
         const finding_algorithm::output_type track_candidates = m_finding(

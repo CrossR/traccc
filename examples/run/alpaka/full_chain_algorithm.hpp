@@ -47,9 +47,8 @@ namespace traccc::alpaka {
 /// At least as much as is implemented in the project at any given moment.
 ///
 class full_chain_algorithm
-    : public algorithm<bound_track_parameters_collection_types::host(
-          const cell_collection_types::host&,
-          const cell_module_collection_types::host&)>,
+    : public algorithm<vecmem::vector<fitting_result<default_algebra>>(
+          const edm::silicon_cell_collection::host&)>,
       public messaging {
 
     public:
@@ -90,7 +89,7 @@ class full_chain_algorithm
     /// @param mr The memory resource to use for the intermediate and result
     ///           objects
     ///
-    full_chain_algorithm(::vecmem::memory_resource& host_mr,
+    full_chain_algorithm(vecmem::memory_resource& host_mr,
                          const clustering_config& clustering_config,
                          const seedfinder_config& finder_config,
                          const spacepoint_grid_config& grid_config,
@@ -98,7 +97,8 @@ class full_chain_algorithm
                          const finding_algorithm::config_type& finding_config,
                          const fitting_algorithm::config_type& fitting_config,
                          const silicon_detector_description::host& det_descr,
-                         host_detector_type* detector);
+                         host_detector_type* detector,
+                         std::unique_ptr<const traccc::Logger> logger);
 
     /// Copy constructor
     ///

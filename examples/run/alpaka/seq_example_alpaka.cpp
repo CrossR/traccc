@@ -36,6 +36,7 @@
 #include "traccc/options/track_propagation.hpp"
 #include "traccc/options/track_seeding.hpp"
 #include "traccc/performance/collection_comparator.hpp"
+#include "traccc/performance/container_comparator.hpp"
 #include "traccc/performance/soa_comparator.hpp"
 #include "traccc/performance/timer.hpp"
 #include "traccc/seeding/seeding_algorithm.hpp"
@@ -56,14 +57,13 @@
 #include <iostream>
 #include <memory>
 
-namespace po = boost::program_options;
-
 int seq_run(const traccc::opts::detector& detector_opts,
             const traccc::opts::input_data& input_opts,
             const traccc::opts::clusterization& clusterization_opts,
             const traccc::opts::track_seeding& seeding_opts,
             const traccc::opts::track_finding& finding_opts,
             const traccc::opts::track_propagation& propagation_opts,
+            const traccc::opts::track_fitting& fitting_opts,
             const traccc::opts::performance& performance_opts,
             const traccc::opts::accelerator& accelerator_opts,
             std::unique_ptr<const traccc::Logger> ilogger) {
@@ -150,10 +150,10 @@ int seq_run(const traccc::opts::detector& detector_opts,
     // Algorithm configuration(s).
     detray::propagation::config propagation_config(propagation_opts);
 
-    host_finding_algorithm::config_type finding_cfg(finding_opts);
+    traccc::finding_config finding_cfg(finding_opts);
     finding_cfg.propagation = propagation_config;
 
-    host_fitting_algorithm::config_type fitting_cfg;
+    traccc::fitting_config fitting_cfg(fitting_opts);
     fitting_cfg.propagation = propagation_config;
 
     // Constant B field for the track finding and fitting
@@ -171,6 +171,10 @@ int seq_run(const traccc::opts::detector& detector_opts,
         seeding_opts.seedfilter, host_mr, logger().clone("HostSeedingAlg"));
     traccc::host::track_params_estimation tp(
         host_mr, logger().clone("HostTrackParEstAlg"));
+    host_finding_algorithm finding_alg(finding_cfg,
+                                       logger().clone("HostFindingAlg"));
+    host_fitting_algorithm fitting_alg(fitting_cfg, host_mr,
+                                       logger().clone("HostFittingAlg"));
 
     traccc::alpaka::clusterization_algorithm ca_alpaka(
         mr, copy, clusterization_opts, logger().clone("AlpakaClusteringAlg"));
@@ -183,6 +187,17 @@ int seq_run(const traccc::opts::detector& detector_opts,
         seeding_opts.seedfilter, mr, copy, logger().clone("AlpakaSeedingAlg"));
     traccc::alpaka::track_params_estimation tp_alpaka(
         mr, copy, logger().clone("AlpakaTrackParEstAlg"));
+    device_finding_algorithm finding_alg_alpaka(finding_cfg, mr, copy,
+                                                logger().clone("AlpakaFindingAlg"));
+    device_fitting_algorithm fitting_alg_alpaka(fitting_cfg, mr, copy,
+                                                logger().clone("AlpakaFittingAlg"));
+
+    traccc::device::container_d2h_copy_alg<
+        traccc::track_candidate_container_types>
+        copy_track_candidates(mr, copy,
+                              logger().clone("TrackCandidateD2HCopyAlg"));
+    traccc::device::container_d2h_copy_alg<traccc::track_state_container_types>
+        copy_track_states(mr, copy, logger().clone("TrackStateD2HCopyAlg"));
 
     // performance writer
     traccc::seeding_performance_writer sd_performance_writer(
@@ -201,6 +216,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
             host_mr};
         traccc::host::seeding_algorithm::output_type seeds{host_mr};
         traccc::host::track_params_estimation::output_type params{&host_mr};
+        host_finding_algorithm::output_type track_candidates;
+        host_fitting_algorithm::output_type track_states;
 
         // Instantiate alpaka containers/collections
         traccc::measurement_collection_types::buffer measurements_alpaka_buffer(
@@ -349,6 +366,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
           compare cpu and alpaka result
           ----------------------------------*/
 
+        traccc::measurement_collection_types::host measurements_per_event_alpaka;
         traccc::edm::spacepoint_collection::host spacepoints_per_event_alpaka{
             host_mr};
         traccc::edm::seed_collection::host seeds_alpaka{host_mr};
@@ -366,7 +384,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
         if (accelerator_opts.compare_with_cpu) {
 
             // Show which event we are currently presenting the results for.
-            std::cout << "===>>> Event " << event << " <<<===" << std::endl;
+            TRACCC_INFO("===>>> Event " << event << " <<<===");
 
             // Compare the measurements made on the host and on the device.
             traccc::collection_comparator<traccc::measurement>
@@ -464,29 +482,23 @@ int seq_run(const traccc::opts::detector& detector_opts,
         sd_performance_writer.finalize();
     }
 
-    std::cout << "==> Statistics ... " << std::endl;
-    std::cout << "- read    " << n_cells << " cells" << std::endl;
-    std::cout << "- created (cpu)     " << n_measurements << " measurements"
-              << std::endl;
-    std::cout << "- created (alpaka)  " << n_measurements_alpaka
-              << " measurements" << std::endl;
-    std::cout << "- created (cpu)    " << n_spacepoints << " spacepoints"
-              << std::endl;
-    std::cout << "- created (alpaka) " << n_spacepoints_alpaka
-              << " spacepoints     " << std::endl;
 
-    std::cout << "- created (cpu)    " << n_seeds << " seeds" << std::endl;
-    std::cout << "- created (alpaka) " << n_seeds_alpaka << " seeds"
-              << std::endl;
-    std::cout << "- found (cpu)      " << n_found_tracks << " tracks"
-              << std::endl;
-    std::cout << "- found (alpaka)   " << n_found_tracks_alpaka << " tracks"
-              << std::endl;
-    std::cout << "- fitted (cpu)     " << n_fitted_tracks << " tracks"
-              << std::endl;
-    std::cout << "- fitted (alpaka)  " << n_fitted_tracks_alpaka << " tracks"
-              << std::endl;
-    std::cout << "==>Elapsed times...\n" << elapsedTimes << std::endl;
+    TRACCC_INFO("==> Statistics ... ");
+    TRACCC_INFO("- read    " << n_cells << " cells");
+    TRACCC_INFO("- created (cpu)  " << n_measurements << " measurements     ");
+    TRACCC_INFO("- created (alpaka)  " << n_measurements_alpaka
+                                     << " measurements     ");
+    TRACCC_INFO("- created (cpu)  " << n_spacepoints << " spacepoints     ");
+    TRACCC_INFO("- created (alpaka) " << n_spacepoints_alpaka
+                                    << " spacepoints     ");
+
+    TRACCC_INFO("- created  (cpu) " << n_seeds << " seeds");
+    TRACCC_INFO("- created (alpaka) " << n_seeds_alpaka << " seeds");
+    TRACCC_INFO("- found (cpu)    " << n_found_tracks << " tracks");
+    TRACCC_INFO("- found (alpaka)   " << n_found_tracks_alpaka << " tracks");
+    TRACCC_INFO("- fitted (cpu)   " << n_fitted_tracks << " tracks");
+    TRACCC_INFO("- fitted (alpaka)  " << n_fitted_tracks_alpaka << " tracks");
+    TRACCC_INFO("==>Elapsed times... " << elapsedTimes);
 
     return 0;
 }
@@ -504,17 +516,20 @@ int main(int argc, char* argv[]) {
     traccc::opts::track_seeding seeding_opts;
     traccc::opts::track_finding finding_opts;
     traccc::opts::track_propagation propagation_opts;
+    traccc::opts::track_fitting fitting_opts;
     traccc::opts::performance performance_opts;
     traccc::opts::accelerator accelerator_opts;
     traccc::opts::program_options program_opts{
         "Full Tracking Chain Using Alpaka",
         {detector_opts, input_opts, clusterization_opts, seeding_opts,
-         finding_opts, propagation_opts, performance_opts, accelerator_opts},
+         finding_opts, propagation_opts, performance_opts, fitting_opts,
+         accelerator_opts},
         argc,
         argv,
         logger->cloneWithSuffix("Options")};
 
     // Run the application.
     return seq_run(detector_opts, input_opts, clusterization_opts, seeding_opts,
+                   finding_opts, propagation_opts, fitting_opts,
                    performance_opts, accelerator_opts, logger->clone());
 }
