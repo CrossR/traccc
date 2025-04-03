@@ -58,8 +58,9 @@ class copy;
 }  // namespace sycl
 }  // namespace vecmem
 
-namespace traccc::alpaka::vecmem_resources {
-// For all CPU accelerators (except SYCL), just use host
+namespace traccc::alpaka {
+
+// VecMem resource types for different device tags
 template <typename T>
 struct host_device_types {
     using device_memory_resource = vecmem::host_memory_resource;
@@ -111,4 +112,4 @@ using managed_memory_resource =
     typename host_device_types<AccTag>::managed_memory_resource;
 using device_copy = typename host_device_types<AccTag>::device_copy;
 
-}  // namespace traccc::alpaka::vecmem_resources
+}  // namespace traccc::alpaka
