@@ -11,6 +11,7 @@
 #include "traccc/alpaka/seeding/seeding_algorithm.hpp"
 #include "traccc/alpaka/seeding/track_params_estimation.hpp"
 #include "traccc/alpaka/utils/get_vecmem_resource.hpp"
+#include "traccc/alpaka/utils/queue.hpp"
 #include "traccc/definitions/common.hpp"
 #include "traccc/device/container_d2h_copy_alg.hpp"
 #include "traccc/device/container_h2d_copy_alg.hpp"
@@ -86,8 +87,9 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     using device_fitter_type =
         traccc::kalman_fitter<rk_stepper_type, device_navigator_type>;
 
+    traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q;
+    ::sycl::queue q = reinterpret_cast<::sycl::queue>(queue.deviceNativeHandle());
     vecmem::sycl::queue_wrapper qw{&q};
     traccc::alpaka::device_copy copy(qw);
     traccc::alpaka::host_memory_resource host_mr(qw);
@@ -171,9 +173,10 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
         seeding_opts.seedfilter,
         mr,
         copy,
+        queue,
         logger().clone("AlpakaSeedingAlg")};
     traccc::alpaka::track_params_estimation tp_alpaka{
-        mr, copy, logger().clone("AlpakaTrackParEstAlg")};
+        mr, copy, queue, logger().clone("AlpakaTrackParEstAlg")};
 
     // Propagation configuration
     detray::propagation::config propagation_config(propagation_opts);
@@ -186,7 +189,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     traccc::host::combinatorial_kalman_filter_algorithm host_finding(
         cfg, logger().clone("HostFindingAlg"));
     traccc::alpaka::finding_algorithm<rk_stepper_type, device_navigator_type>
-        device_finding(cfg, mr, copy, logger().clone("AlpakaFindingAlg"));
+        device_finding(cfg, mr, copy, queue, logger().clone("AlpakaFindingAlg"));
 
     // Fitting algorithm object
     traccc::fitting_config fit_cfg(fitting_opts);
@@ -195,7 +198,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     traccc::host::kalman_fitting_algorithm host_fitting(
         fit_cfg, host_mr, host_copy, logger().clone("HostFittingAlg"));
     traccc::alpaka::fitting_algorithm<device_fitter_type> device_fitting(
-        fit_cfg, mr, copy, logger().clone("AlpakaFittingAlg"));
+        fit_cfg, mr, copy, queue, logger().clone("AlpakaFittingAlg"));
 
     traccc::performance::timing_info elapsedTimes;
 
@@ -269,6 +272,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                 // Reconstruct the spacepoints into seeds.
                 seeds_alpaka_buffer =
                     sa_alpaka(vecmem::get_data(spacepoints_alpaka_buffer));
+                queue.synchronize();
             }
 
             // CPU
@@ -291,6 +295,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     tp_alpaka(measurements_alpaka_buffer,
                               spacepoints_alpaka_buffer, seeds_alpaka_buffer,
                               {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
+                queue.synchronize();
             }  // stop measuring track params alpaka timer
 
             // CPU

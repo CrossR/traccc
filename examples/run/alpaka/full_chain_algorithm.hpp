@@ -17,6 +17,7 @@
 #include "traccc/alpaka/seeding/track_params_estimation.hpp"
 #include "traccc/alpaka/utils/get_device_info.hpp"
 #include "traccc/alpaka/utils/get_vecmem_resource.hpp"
+#include "traccc/alpaka/utils/queue.hpp"
 #include "traccc/clusterization/clustering_config.hpp"
 #include "traccc/edm/silicon_cell_collection.hpp"
 #include "traccc/edm/track_state.hpp"
@@ -124,6 +125,8 @@ class full_chain_algorithm
     private:
     /// Host memory resource
     ::vecmem::memory_resource& m_host_mr;
+    /// Alpaka queue to use
+    queue m_queue;
 
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
     /// The SYCL queue to use for the computations
