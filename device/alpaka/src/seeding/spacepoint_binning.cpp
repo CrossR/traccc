@@ -56,21 +56,20 @@ namespace details {
 
 spacepoint_binning::spacepoint_binning(
     const seedfinder_config& config, const spacepoint_grid_config& grid_config,
-    const traccc::memory_resource& mr, vecmem::copy& copy,
+    const traccc::memory_resource& mr, vecmem::copy& copy, queue& q,
     std::unique_ptr<const Logger> logger)
     : messaging(std::move(logger)),
       m_config(config),
       m_axes(get_axes(grid_config, (mr.host ? *(mr.host) : mr.main))),
       m_mr(mr),
-      m_copy(copy) {}
+      m_copy(copy),
+      m_queue(q) {}
 
 traccc::details::spacepoint_grid_types::buffer spacepoint_binning::operator()(
     const edm::spacepoint_collection::const_view& spacepoints_view) const {
 
     // Setup alpaka
-    auto const platformAcc = ::alpaka::Platform<Acc>{};
-    auto devAcc = ::alpaka::getDevByIdx(platformAcc, 0u);
-    auto queue = Queue{devAcc};
+    auto queue = details::get_queue(m_queue);
 
     // Get the spacepoint sizes from the view
     auto sp_size = m_copy.get_size(spacepoints_view);

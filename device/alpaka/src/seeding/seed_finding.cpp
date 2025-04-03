@@ -192,13 +192,14 @@ namespace details {
 seed_finding::seed_finding(const seedfinder_config& config,
                            const seedfilter_config& filter_config,
                            const traccc::memory_resource& mr,
-                           vecmem::copy& copy,
+                           vecmem::copy& copy, queue& q,
                            std::unique_ptr<const Logger> logger)
     : messaging(std::move(logger)),
       m_seedfinder_config(config),
       m_seedfilter_config(filter_config),
       m_mr(mr),
-      m_copy(copy) {}
+      m_copy(copy),
+      m_queue(q) {}
 
 edm::seed_collection::buffer seed_finding::operator()(
     const edm::spacepoint_collection::const_view& spacepoints_view,
@@ -207,7 +208,7 @@ edm::seed_collection::buffer seed_finding::operator()(
     // Setup alpaka
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
-    auto queue = Queue{devAcc};
+    auto queue = details::get_queue(m_queue);
     auto const deviceProperties = ::alpaka::getAccDevProps<Acc>(devAcc);
     Idx maxThreads = deviceProperties.m_blockThreadExtentMax[0];
     Idx threadsPerBlock = std::min(getWarpSize<Acc>() * 2, maxThreads);
