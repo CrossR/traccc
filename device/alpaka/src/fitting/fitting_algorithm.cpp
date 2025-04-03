@@ -171,7 +171,6 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         ::alpaka::exec<Acc>(
             queue, workDiv, FillSortKeysKernel{}, track_candidates_view,
             vecmem::get_data(keys_buffer), vecmem::get_data(param_ids_buffer));
-        ::alpaka::wait(queue);
 
         // Sort the key to get the sorted parameter ids
         vecmem::device_vector<device::sort_key> keys_device(keys_buffer);
@@ -197,7 +196,6 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         auto bufAcc_fitPayload =
             ::alpaka::allocBuf<fit_payload<fitter_t>, Idx>(devAcc, 1u);
         ::alpaka::memcpy(queue, bufAcc_fitPayload, bufHost_fitPayload);
-        ::alpaka::wait(queue);
 
         // Run the track fitting
         ::alpaka::exec<Acc>(
@@ -205,8 +203,9 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
             FitTrackKernel<fitter_t,
                            typename fitter_t::detector_type::view_type>{},
             ::alpaka::getPtrNative(bufAcc_fitPayload));
-        ::alpaka::wait(queue);
     }
+
+    ::alpaka::wait(queue);
 
     return track_states_buffer;
 }

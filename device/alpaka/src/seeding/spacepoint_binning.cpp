@@ -96,7 +96,6 @@ traccc::details::spacepoint_grid_types::buffer spacepoint_binning::operator()(
     ::alpaka::exec<Acc>(queue, workDiv, kernels::CountGridCapacity{}, m_config,
                         m_axes.first, m_axes.second, spacepoints_view,
                         grid_capacities_view);
-    ::alpaka::wait(queue);
 
     // Copy grid capacities back to the host
     vecmem::vector<unsigned int> grid_capacities_host(m_mr.host ? m_mr.host
@@ -114,7 +113,6 @@ traccc::details::spacepoint_grid_types::buffer spacepoint_binning::operator()(
 
     ::alpaka::exec<Acc>(queue, workDiv, kernels::PopulateGrid{}, m_config,
                         spacepoints_view, grid_view);
-    ::alpaka::wait(queue);
 
     // Return the freshly filled buffer.
     return grid_buffer;

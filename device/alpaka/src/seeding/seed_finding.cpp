@@ -218,7 +218,7 @@ edm::seed_collection::buffer seed_finding::operator()(
 
     // Create prefix sum buffer
     vecmem::data::vector_buffer sp_grid_prefix_sum_buff =
-        make_prefix_sum_buff(grid_sizes, m_copy, m_mr, queue);
+        make_prefix_sum_buff(grid_sizes, m_copy, m_mr, m_queue);
 
     const auto num_spacepoints = m_copy.get_size(sp_grid_prefix_sum_buff);
     if (num_spacepoints == 0) {
@@ -247,7 +247,6 @@ edm::seed_collection::buffer seed_finding::operator()(
     auto bufAcc_counter =
         ::alpaka::allocBuf<device::seeding_global_counter, Idx>(devAcc, 1u);
     ::alpaka::memcpy(queue, bufAcc_counter, bufHost_counter);
-    ::alpaka::wait(queue);
 
     // Count the number of doublets that we need to produce.
     ::alpaka::exec<Acc>(queue, workDiv, kernels::CountDoublets{},
@@ -255,7 +254,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(sp_grid_prefix_sum_buff),
                         vecmem::get_data(doublet_counter_buffer),
                         ::alpaka::getPtrNative(bufAcc_counter));
-    ::alpaka::wait(queue);
 
     // Get the summary values per bin.
     ::alpaka::memcpy(queue, bufHost_counter, bufAcc_counter);
@@ -287,7 +285,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(doublet_counter_buffer),
                         vecmem::get_data(doublet_buffer_mb),
                         vecmem::get_data(doublet_buffer_mt));
-    ::alpaka::wait(queue);
 
     // Set up the triplet counter buffers
     device::triplet_counter_spM_collection_types::buffer
@@ -313,7 +310,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(doublet_buffer_mt),
                         vecmem::get_data(triplet_counter_spM_buffer),
                         vecmem::get_data(triplet_counter_midBot_buffer));
-    ::alpaka::wait(queue);
 
     // Calculate the number of threads and thread blocks to run the triplet
     // count reduction kernel for.
@@ -326,7 +322,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(doublet_counter_buffer),
                         vecmem::get_data(triplet_counter_spM_buffer),
                         ::alpaka::getPtrNative(bufAcc_counter));
-    ::alpaka::wait(queue);
 
     ::alpaka::memcpy(queue, bufHost_counter, bufAcc_counter);
     ::alpaka::wait(queue);
@@ -357,7 +352,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(triplet_counter_spM_buffer),
                         vecmem::get_data(triplet_counter_midBot_buffer),
                         vecmem::get_data(triplet_buffer));
-    ::alpaka::wait(queue);
 
     blocksPerGrid =
         (pBufHost_counter->m_nTriplets + threadsPerBlock - 1) / threadsPerBlock;
@@ -369,7 +363,6 @@ edm::seed_collection::buffer seed_finding::operator()(
                         vecmem::get_data(triplet_counter_spM_buffer),
                         vecmem::get_data(triplet_counter_midBot_buffer),
                         vecmem::get_data(triplet_buffer));
-    ::alpaka::wait(queue);
 
     // Create result object: collection of seeds
     edm::seed_collection::buffer seed_buffer(
@@ -389,7 +382,6 @@ edm::seed_collection::buffer seed_finding::operator()(
         spacepoints_view, g2_view, vecmem::get_data(triplet_counter_spM_buffer),
         vecmem::get_data(triplet_counter_midBot_buffer),
         vecmem::get_data(triplet_buffer), vecmem::get_data(seed_buffer));
-    ::alpaka::wait(queue);
 
     return seed_buffer;
 }

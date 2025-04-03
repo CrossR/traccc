@@ -142,7 +142,6 @@ clusterization_algorithm::output_type clusterization_algorithm::operator()(
         vecmem::get_data(m_adjc_backup), vecmem::get_data(m_adjv_backup),
         m_backup_mutex.get(), vecmem::get_data(measurements),
         vecmem::get_data(cell_links));
-    ::alpaka::wait(queue);
 
     return measurements;
 }

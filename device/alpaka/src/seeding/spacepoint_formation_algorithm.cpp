@@ -71,7 +71,6 @@ spacepoint_formation_algorithm<detector_t>::operator()(
     // Launch the spacepoint formation kernel.
     ::alpaka::exec<Acc>(queue, workDiv, FormSpacepointsKernel<detector_t>{},
                         det_view, measurements_view, spacepoints_view);
-    ::alpaka::wait(queue);
 
     // Return the reconstructed spacepoints.
     return spacepoints;
