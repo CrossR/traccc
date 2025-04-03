@@ -13,18 +13,21 @@
 #include <vecmem/memory/cuda/device_memory_resource.hpp>
 #include <vecmem/memory/cuda/host_memory_resource.hpp>
 #include <vecmem/memory/cuda/managed_memory_resource.hpp>
+#include <vecmem/utils/cuda/async_copy.hpp>
 #include <vecmem/utils/cuda/copy.hpp>
 
 #elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
 #include <vecmem/memory/hip/device_memory_resource.hpp>
 #include <vecmem/memory/hip/host_memory_resource.hpp>
 #include <vecmem/memory/hip/managed_memory_resource.hpp>
+#include <vecmem/utils/hip/async_copy.hpp>
 #include <vecmem/utils/hip/copy.hpp>
 
 #elif defined(ALPAKA_ACC_SYCL_ENABLED)
 #include <vecmem/memory/sycl/device_memory_resource.hpp>
 #include <vecmem/memory/sycl/host_memory_resource.hpp>
 #include <vecmem/memory/sycl/shared_memory_resource.hpp>
+#include <vecmem/utils/sycl/async_copy.hpp>
 #include <vecmem/utils/sycl/copy.hpp>
 
 #else
@@ -43,18 +46,21 @@ class host_memory_resource;
 class device_memory_resource;
 class managed_memory_resource;
 class copy;
+class async_copy;
 }  // namespace cuda
 namespace hip {
 class host_memory_resource;
 class device_memory_resource;
 class managed_memory_resource;
 class copy;
+class async_copy;
 }  // namespace hip
 namespace sycl {
 class host_memory_resource;
 class device_memory_resource;
 class shared_memory_resource;
 class copy;
+class async_copy;
 }  // namespace sycl
 }  // namespace vecmem
 
@@ -67,6 +73,7 @@ struct host_device_types {
     using host_memory_resource = vecmem::host_memory_resource;
     using managed_memory_resource = vecmem::host_memory_resource;
     using device_copy = vecmem::copy;
+    using async_copy = vecmem::copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuCudaRt> {
@@ -74,6 +81,7 @@ struct host_device_types<::alpaka::TagGpuCudaRt> {
     using host_memory_resource = vecmem::cuda::host_memory_resource;
     using managed_memory_resource = vecmem::cuda::managed_memory_resource;
     using device_copy = vecmem::cuda::copy;
+    using async_device_copy = vecmem::cuda::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuHipRt> {
@@ -81,6 +89,7 @@ struct host_device_types<::alpaka::TagGpuHipRt> {
     using host_memory_resource = vecmem::hip::host_memory_resource;
     using managed_memory_resource = vecmem::hip::managed_memory_resource;
     using device_copy = vecmem::hip::copy;
+    using async_device_copy = vecmem::hip::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagCpuSycl> {
@@ -88,6 +97,7 @@ struct host_device_types<::alpaka::TagCpuSycl> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using async_device_copy = vecmem::sycl::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagFpgaSyclIntel> {
@@ -95,6 +105,7 @@ struct host_device_types<::alpaka::TagFpgaSyclIntel> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using async_device_copy = vecmem::sycl::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuSyclIntel> {
@@ -102,6 +113,7 @@ struct host_device_types<::alpaka::TagGpuSyclIntel> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using async_device_copy = vecmem::sycl::async_copy;
 };
 
 using device_memory_resource =
@@ -111,5 +123,7 @@ using host_memory_resource =
 using managed_memory_resource =
     typename host_device_types<AccTag>::managed_memory_resource;
 using device_copy = typename host_device_types<AccTag>::device_copy;
+using async_device_copy =
+    typename host_device_types<AccTag>::async_device_copy;
 
 }  // namespace traccc::alpaka

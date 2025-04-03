@@ -137,7 +137,7 @@ class full_chain_algorithm
     /// Device memory resource
     traccc::alpaka::device_memory_resource m_device_mr;
     /// Memory copy object
-    traccc::alpaka::device_copy m_copy;
+    mutable traccc::alpaka::async_device_copy m_copy;
     /// Device caching memory resource
     std::unique_ptr<::vecmem::binary_page_memory_resource> m_cached_device_mr;
 

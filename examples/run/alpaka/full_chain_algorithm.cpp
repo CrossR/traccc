@@ -34,7 +34,7 @@ full_chain_algorithm::full_chain_algorithm(
       m_copy(m_queue_wrapper),
 #else
       m_device_mr(),
-      m_copy(),
+      m_copy(m_queue.deviceNativeQueue()),
 #endif
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),
@@ -97,7 +97,7 @@ full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
       m_copy(m_queue_wrapper),
 #else
       m_device_mr(),
-      m_copy(),
+      m_copy(m_queue.deviceNativeQueue()),
 #endif
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),
