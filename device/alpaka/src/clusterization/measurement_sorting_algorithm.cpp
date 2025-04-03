@@ -14,12 +14,17 @@
 namespace traccc::alpaka {
 
 measurement_sorting_algorithm::measurement_sorting_algorithm(
-    vecmem::copy& copy, std::unique_ptr<const Logger> logger)
-    : messaging(std::move(logger)), m_copy{copy} {}
+    const traccc::memory_resource& mr, vecmem::copy& copy, queue& q,
+    std::unique_ptr<const Logger> logger)
+    : messaging(std::move(logger)), m_mr{mr}, m_copy{copy}, m_queue{q} {}
 
 measurement_sorting_algorithm::output_type
 measurement_sorting_algorithm::operator()(
     const measurement_collection_types::view& measurements_view) const {
+
+    // TODO: This will be needed for setting up thrust / oneDPL later.
+    // // Get a convenience variable for the queue that we'll be using.
+    // auto queue = details::get_queue(m_queue);
 
     // Get the number of measurements. This is necessary because the input
     // container may not be fixed sized. And we can't give invalid pointers /

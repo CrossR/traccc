@@ -73,12 +73,13 @@ struct ZeroMutexKernel {
 };
 
 clusterization_algorithm::clusterization_algorithm(
-    const traccc::memory_resource& mr, vecmem::copy& copy,
+    const traccc::memory_resource& mr, vecmem::copy& copy, queue& q,
     const config_type& config, std::unique_ptr<const Logger> logger)
     : messaging(std::move(logger)),
-      m_config(config),
       m_mr(mr),
       m_copy(copy),
+      m_queue(q),
+      m_config(config),
       m_f_backup(m_config.backup_size(), m_mr.main),
       m_gf_backup(m_config.backup_size(), m_mr.main),
       m_adjc_backup(m_config.backup_size(), m_mr.main),
@@ -95,9 +96,8 @@ clusterization_algorithm::output_type clusterization_algorithm::operator()(
     const edm::silicon_cell_collection::const_view& cells,
     const silicon_detector_description::const_view& det_descr) const {
 
-    // Setup alpaka
-    auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
-    auto queue = Queue{devAcc};
+    // Get a convenience variable for the queue that we'll be using.
+    auto queue = details::get_queue(m_queue);
 
     // Setup the mutex, if it is not already setup.
     std::call_once(m_setup_once, [&queue, mutex_ptr = m_backup_mutex.get()]() {

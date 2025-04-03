@@ -57,8 +57,8 @@ namespace traccc::alpaka {
 template <typename stepper_t, typename navigator_t>
 finding_algorithm<stepper_t, navigator_t>::finding_algorithm(
     const config_type& cfg, const traccc::memory_resource& mr,
-    vecmem::copy& copy, std::unique_ptr<const Logger> logger)
-    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy) {}
+    vecmem::copy& copy, queue& q, std::unique_ptr<const Logger> logger)
+    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy), m_queue(q) {}
 
 template <typename stepper_t, typename navigator_t>
 track_candidate_container_types::buffer
@@ -76,7 +76,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Setup alpaka
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
-    auto queue = Queue{devAcc};
+    auto queue = details::get_queue(m_queue);
     Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
     // Copy setup

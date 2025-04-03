@@ -103,8 +103,8 @@ struct FitTrackKernel {
 template <typename fitter_t>
 fitting_algorithm<fitter_t>::fitting_algorithm(
     const config_type& cfg, const traccc::memory_resource& mr,
-    vecmem::copy& copy, std::unique_ptr<const Logger> logger)
-    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy) {}
+    vecmem::copy& copy, queue& q, std::unique_ptr<const Logger> logger)
+    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy), m_queue(q) {}
 
 template <typename fitter_t>
 track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
@@ -116,7 +116,7 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
     // Setup alpaka
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
-    auto queue = Queue{devAcc};
+    auto queue = details::get_queue(m_queue);
     Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
 #if defined(ALPAKA_ACC_GPU_CUDA_ENABLED) || defined(ALPAKA_ACC_GPU_HIP_ENABLED)
