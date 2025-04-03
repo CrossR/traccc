@@ -104,7 +104,11 @@ template <typename fitter_t>
 fitting_algorithm<fitter_t>::fitting_algorithm(
     const config_type& cfg, const traccc::memory_resource& mr,
     vecmem::copy& copy, queue& q, std::unique_ptr<const Logger> logger)
-    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy), m_queue(q) {}
+    : messaging(std::move(logger)),
+      m_cfg(cfg),
+      m_mr(mr),
+      m_copy(copy),
+      m_queue(q) {}
 
 template <typename fitter_t>
 track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
@@ -119,10 +123,18 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
     auto queue = details::get_queue(m_queue);
     Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
-#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED) || defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    auto thrustExecPolicy = thrust::device;
+#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
+    auto stream = reinterpret_cast<cudaStream_t>(m_queue.deviceNativeQueue());
+    auto execPolicy =
+        thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(m_mr.main)))
+            .on(stream);
+#elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
+    auto stream = reinterpret_cast<hipStream_t>(m_queue.deviceNativeQueue());
+    auto execPolicy = thrust::hip_rocprim::par_nosync(
+                          std::pmr::polymorphic_allocator(&(m_mr.main)))
+                          .on(stream);
 #else
-    auto thrustExecPolicy = thrust::host;
+    auto execPolicy = thrust::host;
 #endif
 
     // Number of tracks
@@ -176,8 +188,8 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         vecmem::device_vector<device::sort_key> keys_device(keys_buffer);
         vecmem::device_vector<unsigned int> param_ids_device(param_ids_buffer);
 
-        thrust::sort_by_key(thrustExecPolicy, keys_device.begin(),
-                            keys_device.end(), param_ids_device.begin());
+        thrust::sort_by_key(execPolicy, keys_device.begin(), keys_device.end(),
+                            param_ids_device.begin());
 
         // Prepare the payload for the track fitting
         fit_payload<fitter_t> payload{det_view,
