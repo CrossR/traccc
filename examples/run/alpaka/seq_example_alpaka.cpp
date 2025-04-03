@@ -72,17 +72,16 @@ int seq_run(const traccc::opts::detector& detector_opts,
     traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q =
-        reinterpret_cast<::sycl::queue>(queue.deviceNativeHandle());
+        reinterpret_cast<::sycl::queue>(queue.deviceNativeQueue());
     vecmem::sycl::queue_wrapper qw{&q};
-    traccc::alpaka::device_copy copy(qw);
     traccc::alpaka::host_memory_resource host_mr(qw);
     traccc::alpaka::device_memory_resource device_mr(qw);
 #else
-    traccc::alpaka::device_copy copy;
     traccc::alpaka::host_memory_resource host_mr;
     traccc::alpaka::device_memory_resource device_mr;
 #endif
     traccc::memory_resource mr{device_mr, &host_mr};
+    traccc::alpaka::async_device_copy copy(queue.deviceNativeQueue());
     vecmem::copy host_copy;
 
     // Construct the detector description object.
