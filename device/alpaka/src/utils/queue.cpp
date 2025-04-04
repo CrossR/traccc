@@ -13,10 +13,10 @@
 
 namespace traccc::alpaka {
 
-queue::queue(int device) {
+queue::queue(std::size_t device) {
 
     // Make sure that the queue is constructed on the correct device.
-    int selected_device = device == INVALID_DEVICE ? 0 : device;
+    std::size_t selected_device = device == INVALID_DEVICE ? 0 : device;
 
     // Construct the queue.
     m_queue = std::make_unique<details::opaque_queue>(selected_device);
@@ -42,7 +42,7 @@ queue& queue::operator=(queue&& rhs) {
     return *this;
 }
 
-int queue::device() const {
+std::size_t queue::device() const {
 
     return m_queue->m_device;
 }

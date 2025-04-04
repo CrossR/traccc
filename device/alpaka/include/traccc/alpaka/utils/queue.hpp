@@ -8,6 +8,8 @@
 #pragma once
 
 // System include(s).
+#include <cstddef>
+#include <limits>
 #include <memory>
 
 namespace traccc::alpaka {
@@ -26,10 +28,10 @@ class queue {
 
     public:
     /// Invalid/default device identifier
-    static constexpr int INVALID_DEVICE = -1;
+    static constexpr std::size_t INVALID_DEVICE = std::numeric_limits<std::size_t>::max();
 
     /// Construct a new queue (possibly for a specified device)
-    queue(int device = INVALID_DEVICE);
+    queue(std::size_t device = INVALID_DEVICE);
 
     /// Move constructor
     queue(queue&& parent);
@@ -41,7 +43,7 @@ class queue {
     queue& operator=(queue&& rhs);
 
     /// Device that the queue is associated to
-    int device() const;
+    std::size_t device() const;
 
     /// Access a typeless pointer to the managed @c ::alpaka::Queue object
     void* alpakaQueue() const;

@@ -20,10 +20,10 @@ namespace traccc::alpaka::details {
 struct opaque_queue {
 
     /// Default constructor
-    opaque_queue(int device);
+    opaque_queue(std::size_t device);
 
     /// Device that the queue is associated to
-    int m_device;
+    std::size_t m_device;
     /// Queue managed by the object
     std::unique_ptr<Queue> m_queue;
 

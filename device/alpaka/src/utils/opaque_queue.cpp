@@ -10,7 +10,7 @@
 
 namespace traccc::alpaka::details {
 
-opaque_queue::opaque_queue(int device) : m_device{device}, m_queue(nullptr) {
+opaque_queue::opaque_queue(std::size_t device) : m_device{device}, m_queue(nullptr) {
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, device);
     m_queue = std::make_unique<Queue>(devAcc);
 }
