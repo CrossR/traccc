@@ -90,7 +90,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q =
-        reinterpret_cast<::sycl::queue>(queue.deviceNativeQueue());
+        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
     vecmem::sycl::queue_wrapper qw{&q};
     traccc::alpaka::device_copy copy(qw);
     traccc::alpaka::host_memory_resource host_mr(qw);

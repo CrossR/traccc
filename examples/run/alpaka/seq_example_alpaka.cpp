@@ -72,7 +72,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
     traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q =
-        reinterpret_cast<::sycl::queue>(queue.deviceNativeQueue());
+        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
     vecmem::sycl::queue_wrapper qw{&q};
     traccc::alpaka::host_memory_resource host_mr(qw);
     traccc::alpaka::device_memory_resource device_mr(qw);

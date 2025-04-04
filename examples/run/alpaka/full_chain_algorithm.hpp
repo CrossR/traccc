@@ -129,8 +129,7 @@ class full_chain_algorithm
     queue m_queue;
 
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
-    /// The SYCL queue to use for the computations
-    ::sycl::queue m_queue;
+    /// The SYCL queue wrapper to use for the computations
     vecmem::sycl::queue_wrapper m_queue_wrapper;
 #endif
 

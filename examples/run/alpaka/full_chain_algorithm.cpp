@@ -28,7 +28,6 @@ full_chain_algorithm::full_chain_algorithm(
       m_host_mr(host_mr),
       m_queue(),
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
-      m_queue(::sycl::queue()),
       m_queue_wrapper(&m_queue),
       m_device_mr(m_queue_wrapper),
       m_copy(m_queue_wrapper),
@@ -91,7 +90,6 @@ full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
       m_host_mr(parent.m_host_mr),
       m_queue(),
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
-      m_queue(parent.m_queue),
       m_queue_wrapper(&m_queue),
       m_device_mr(m_queue_wrapper),
       m_copy(m_queue_wrapper),
