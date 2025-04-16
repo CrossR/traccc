@@ -80,7 +80,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
 #else
     traccc::alpaka::host_memory_resource host_mr;
     traccc::alpaka::device_memory_resource device_mr;
-    traccc::alpaka::async_device_copy async_copy{queue.deviceNativeQueue()};
+    traccc::alpaka::async_device_copy copy{queue.deviceNativeQueue()};
 #endif
     traccc::memory_resource mr{device_mr, &host_mr};
     vecmem::copy host_copy;
