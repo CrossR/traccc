@@ -55,7 +55,7 @@ void* queue::alpakaQueue() const {
 
 void* queue::deviceNativeQueue() const {
 
-    return static_cast<void*>(::alpaka::getNativeHandle(*(m_queue->m_queue)));
+    return static_cast<void*>(m_queue->m_deviceNativeQueue);
 }
 
 void queue::synchronize() const {
