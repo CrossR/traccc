@@ -71,17 +71,18 @@ int seq_run(const traccc::opts::detector& detector_opts,
     // Memory resources used by the application.
     traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q =
-        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
+    ::sycl::queue q = *(reinterpret_cast<const sycl::queue*>(
+        queue.deviceNativeQueue()));
     vecmem::sycl::queue_wrapper qw{&q};
     traccc::alpaka::host_memory_resource host_mr(qw);
     traccc::alpaka::device_memory_resource device_mr(qw);
+    traccc::alpaka::async_device_copy copy(qw);
 #else
     traccc::alpaka::host_memory_resource host_mr;
     traccc::alpaka::device_memory_resource device_mr;
+    traccc::alpaka::async_device_copy async_copy{queue.deviceNativeQueue()};
 #endif
     traccc::memory_resource mr{device_mr, &host_mr};
-    traccc::alpaka::async_device_copy copy(queue.deviceNativeQueue());
     vecmem::copy host_copy;
 
     // Construct the detector description object.

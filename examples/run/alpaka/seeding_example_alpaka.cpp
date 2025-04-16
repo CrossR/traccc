@@ -89,22 +89,23 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
 
     traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q =
-        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
+    ::sycl::queue q = *(reinterpret_cast<const sycl::queue*>(
+        queue.deviceNativeQueue()));
     vecmem::sycl::queue_wrapper qw{&q};
     traccc::alpaka::device_copy copy(qw);
     traccc::alpaka::host_memory_resource host_mr(qw);
     traccc::alpaka::device_memory_resource device_mr(qw);
     traccc::alpaka::managed_memory_resource mng_mr(qw);
+    traccc::alpaka::async_device_copy async_copy{qw};
     traccc::memory_resource mr{device_mr, &host_mr};
 #else
     traccc::alpaka::device_copy copy;
     traccc::alpaka::host_memory_resource host_mr;
     traccc::alpaka::device_memory_resource device_mr;
     traccc::alpaka::managed_memory_resource mng_mr;
+    traccc::alpaka::async_device_copy async_copy{queue.deviceNativeQueue()};
     traccc::memory_resource mr{device_mr, &host_mr};
 #endif
-    traccc::alpaka::async_device_copy async_copy{queue.deviceNativeQueue()};
     vecmem::copy host_copy;
 
     // Performance writer

@@ -28,7 +28,9 @@ full_chain_algorithm::full_chain_algorithm(
       m_host_mr(host_mr),
       m_queue(),
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
-      m_queue_wrapper(&m_queue),
+      m_sycl_queue(*(reinterpret_cast<const sycl::queue*>(
+        m_queue.deviceNativeQueue()))),
+      m_queue_wrapper(&m_sycl_queue),
       m_device_mr(m_queue_wrapper),
       m_copy(m_queue_wrapper),
 #else
@@ -149,31 +151,41 @@ full_chain_algorithm::~full_chain_algorithm() = default;
 full_chain_algorithm::output_type full_chain_algorithm::operator()(
     const edm::silicon_cell_collection::host& cells) const {
 
+    std::cout << "Starting Alpaka portion of code..." << std::endl;
+
     // Create device copy of input collections
+    std::cout << "Making buffer" << std::endl;
     edm::silicon_cell_collection::buffer cells_buffer(
         static_cast<unsigned int>(cells.size()), *m_cached_device_mr);
+    std::cout << "Copying" << std::endl;
     m_copy(::vecmem::get_data(cells), cells_buffer)->ignore();
 
     // Run the clusterization.
+    std::cout << "Starting clusterization_algorithm..." << std::endl;
     const clusterization_algorithm::output_type measurements =
         m_clusterization(cells_buffer, m_device_det_descr);
+    std::cout << "Starting measurement_sorting_algorithm..." << std::endl;
     m_measurement_sorting(measurements);
 
     // If we have a Detray detector, run the track finding and fitting.
     if (m_detector != nullptr) {
 
         // Run the seed-finding.
+        std::cout << "Starting spacepoint_formation_algorithm..." << std::endl;
         const spacepoint_formation_algorithm::output_type spacepoints =
             m_spacepoint_formation(m_device_detector_view, measurements);
+        std::cout << "Starting track_params_estimation..." << std::endl;
         const track_params_estimation::output_type track_params =
             m_track_parameter_estimation(measurements, spacepoints,
                                          m_seeding(spacepoints), m_field_vec);
 
         // Run the track finding.
+        std::cout << "Starting finding_algorithm..." << std::endl;
         const finding_algorithm::output_type track_candidates = m_finding(
             m_device_detector_view, m_field, measurements, track_params);
 
         // Run the track fitting.
+        std::cout << "Starting fitting_algorithm..." << std::endl;
         const fitting_algorithm::output_type track_states =
             m_fitting(m_device_detector_view, m_field, track_candidates);
 

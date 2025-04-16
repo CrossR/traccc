@@ -153,7 +153,7 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
                           .on(stream);
 #elif defined(ALPAKA_ACC_SYCL_ENABLED)
     auto syclQueue = *(reinterpret_cast<const sycl::queue*>(
-        m_queue.get().deviceNativeQueue()));
+        m_queue.deviceNativeQueue()));
     auto execPolicy = oneapi::dpl::execution::device_policy{syclQueue};
 #else
     auto execPolicy = thrust::host;
