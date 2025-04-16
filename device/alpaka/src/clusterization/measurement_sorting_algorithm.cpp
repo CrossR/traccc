@@ -11,6 +11,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sort.h>
 
+#ifdef ALPAKA_ACC_SYCL_ENABLED
 // oneDPL include(s).
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wshadow"
@@ -28,6 +29,7 @@
 
 // SYCL include(s).
 #include <sycl/sycl.hpp>
+#endif
 
 namespace traccc::alpaka {
 
