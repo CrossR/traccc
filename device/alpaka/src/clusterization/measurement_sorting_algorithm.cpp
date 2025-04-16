@@ -11,6 +11,24 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sort.h>
 
+// oneDPL include(s).
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#include <oneapi/dpl/algorithm>
+#include <oneapi/dpl/execution>
+#pragma clang diagnostic pop
+
+// SYCL include(s).
+#include <sycl/sycl.hpp>
+
 namespace traccc::alpaka {
 
 measurement_sorting_algorithm::measurement_sorting_algorithm(
@@ -45,13 +63,23 @@ measurement_sorting_algorithm::operator()(
     auto execPolicy = thrust::hip_rocprim::par_nosync(
         std::pmr::polymorphic_allocator(&(m_mr.main)))
         .on(stream);
+#elif defined(ALPAKA_ACC_SYCL_ENABLED)
+    auto syclQueue = *(reinterpret_cast<const sycl::queue*>(
+        m_queue.get().deviceNativeQueue()));
+    auto execPolicy = oneapi::dpl::execution::device_policy{syclQueue};
 #else
     auto execPolicy = thrust::host;
 #endif
 
-                thrust::sort(execPolicy, measurements_view.ptr(),
-                             measurements_view.ptr() + n_measurements,
-                             measurement_sort_comp());
+#if defined(ALPAKA_ACC_SYCL_ENABLED)
+    oneapi::dpl::sort(execPolicy, measurements_view.ptr(),
+                      measurements_view.ptr() + n_measurements,
+                      measurement_sort_comp());
+#else
+    thrust::sort(execPolicy, measurements_view.ptr(),
+                 measurements_view.ptr() + n_measurements,
+                 measurement_sort_comp());
+#endif
 
     // Return the view of the sorted measurements.
     return measurements_view;

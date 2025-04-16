@@ -52,6 +52,24 @@
 #include <cassert>
 #include <vector>
 
+// oneDPL include(s).
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#include <oneapi/dpl/algorithm>
+#include <oneapi/dpl/execution>
+#pragma clang diagnostic pop
+
+// SYCL include(s).
+#include <sycl/sycl.hpp>
+
 namespace traccc::alpaka {
 
 template <typename stepper_t, typename navigator_t>
@@ -96,6 +114,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     auto execPolicy = thrust::hip_rocprim::par_nosync(
                           std::pmr::polymorphic_allocator(&(m_mr.main)))
                           .on(stream);
+#elif defined(ALPAKA_ACC_SYCL_ENABLED)
+    auto syclQueue = *(reinterpret_cast<const sycl::queue*>(
+        m_queue.get().deviceNativeQueue()));
+    auto execPolicy = oneapi::dpl::execution::device_policy{syclQueue};
 #else
     auto execPolicy = thrust::host;
 #endif
@@ -116,9 +138,17 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     {
         measurement_collection_types::device uniques(uniques_buffer);
 
-        measurement* uniques_end = thrust::unique_copy(
-            execPolicy, measurements.ptr(), measurements.ptr() + n_measurements,
-            uniques.begin(), measurement_equal_comp());
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+    measurement_collection_types::device::iterator uniques_end =
+        oneapi::dpl::unique_copy(execPolicy, measurements.ptr(),
+                                 measurements.ptr() + n_measurements,
+                                 uniques.begin(), measurement_equal_comp());
+#else
+        measurement* uniques_end =
+            thrust::unique_copy(execPolicy, measurements.ptr(),
+                                measurements.ptr() + n_measurements,
+                                uniques.begin(), measurement_equal_comp());
+#endif
         ::alpaka::wait(queue);
         n_modules = static_cast<unsigned int>(uniques_end - uniques.begin());
     }
@@ -133,10 +163,17 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
         measurement_collection_types::device uniques(uniques_buffer);
 
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+        oneapi::dpl::upper_bound(execPolicy, measurements.ptr(),
+                             measurements.ptr() + n_measurements,
+                             uniques.begin(), uniques.begin() + n_modules,
+                             upper_bounds.begin(), measurement_sort_comp());
+#else
         thrust::upper_bound(execPolicy, measurements.ptr(),
                             measurements.ptr() + n_measurements,
                             uniques.begin(), uniques.begin() + n_modules,
                             upper_bounds.begin(), measurement_sort_comp());
+#endif
     }
 
     /*****************************************************************
@@ -159,6 +196,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     }
 
     const unsigned int n_seeds = m_copy.get_size(seeds_buffer);
+    std::cout << "5" << std::endl;
 
     // Prepare input parameters with seeds
     bound_track_parameters_collection_types::buffer in_params_buffer(n_seeds,
@@ -192,6 +230,8 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     step_to_link_idx_map[0] = 0;
 
     unsigned int n_in_params = n_seeds;
+    std::cout << "6" << std::endl;
+    std::cout <<  m_cfg.max_track_candidates_per_track << ", " << n_in_params << std::endl;
 
     for (unsigned int step = 0;
          step < m_cfg.max_track_candidates_per_track && n_in_params > 0;
@@ -297,10 +337,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
             ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
 
+            std::cout << "8" << std::endl;
             ::alpaka::exec<Acc>(queue, workDiv,
                                 FindTracksKernel<std::decay_t<detector_type>>{},
                                 m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
-            ::alpaka::wait(queue);
 
             std::swap(in_params_buffer, updated_params_buffer);
             std::swap(param_liveness_buffer, updated_liveness_buffer);
@@ -310,6 +350,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             n_candidates =
                 step_to_link_idx_map[step + 1] - step_to_link_idx_map[step];
             ::alpaka::wait(queue);
+            std::cout << "9" << std::endl;
         }
 
         if (n_candidates > 0) {
@@ -330,21 +371,27 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     (n_candidates + threadsPerBlock - 1) / threadsPerBlock;
                 auto workDiv = makeWorkDiv<Acc>(blocksPerGrid, threadsPerBlock);
 
+                std::cout << "11" << std::endl;
                 ::alpaka::exec<Acc>(queue, workDiv, FillSortKeysKernel{},
                                     device::fill_sort_keys_payload{
                                         vecmem::get_data(in_params_buffer),
                                         vecmem::get_data(keys_buffer),
                                         vecmem::get_data(param_ids_buffer)});
-                ::alpaka::wait(queue);
 
                 // Sort the key and values
                 vecmem::device_vector<device::sort_key> keys_device(
                     keys_buffer);
                 vecmem::device_vector<unsigned int> param_ids_device(
                     param_ids_buffer);
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+                oneapi::dpl::sort_by_key(execPolicy, keys_device.begin(),
+                                         keys_device.end(),
+                                         param_ids_device.begin());
+#else
                 thrust::sort_by_key(execPolicy, keys_device.begin(),
                                     keys_device.end(),
                                     param_ids_device.begin());
+#endif
                 ::alpaka::wait(queue);
             }
 
@@ -387,12 +434,15 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
                 ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
 
+                std::cout << "13" << std::endl;
                 ::alpaka::exec<Acc>(
                     queue, workDiv,
                     PropagateToNextSurfaceKernel<std::decay_t<propagator_type>,
                                                  std::decay_t<bfield_type>>{},
                     m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
+                std::cout << "14" << std::endl;
                 ::alpaka::wait(queue);
+                std::cout << "15" << std::endl;
             }
         }
 
@@ -407,6 +457,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             static_cast<float>(link_buffer_capacity))
         << "%)");
 
+    std::cout << "17" << std::endl;
     /*****************************************************************
      * Kernel6: Build tracks
      *****************************************************************/
@@ -449,6 +500,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
         track_candidate_container_types::view track_candidates_view(
             track_candidates_buffer);
 
+        std::cout << "19" << std::endl;
         ::alpaka::exec<Acc>(
             queue, workDiv, BuildTracksKernel{}, m_cfg,
             device::build_tracks_payload{
@@ -460,6 +512,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
         // Global counter object: Device -> Host
         ::alpaka::memcpy(queue, bufHost_n_valid_tracks, n_valid_tracks_device);
         ::alpaka::wait(queue);
+        std::cout << "20" << std::endl;
     }
 
     // Create pruned candidate buffer

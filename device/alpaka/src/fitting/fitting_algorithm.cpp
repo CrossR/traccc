@@ -26,6 +26,24 @@
 #include <memory_resource>
 #include <vector>
 
+// oneDPL include(s).
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
+#pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wold-style-cast"
+#include <oneapi/dpl/algorithm>
+#include <oneapi/dpl/execution>
+#pragma clang diagnostic pop
+
+// SYCL include(s).
+#include <sycl/sycl.hpp>
+
 namespace traccc::alpaka {
 
 struct FillSortKeysKernel {
@@ -133,6 +151,10 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
     auto execPolicy = thrust::hip_rocprim::par_nosync(
                           std::pmr::polymorphic_allocator(&(m_mr.main)))
                           .on(stream);
+#elif defined(ALPAKA_ACC_SYCL_ENABLED)
+    auto syclQueue = *(reinterpret_cast<const sycl::queue*>(
+        m_queue.get().deviceNativeQueue()));
+    auto execPolicy = oneapi::dpl::execution::device_policy{syclQueue};
 #else
     auto execPolicy = thrust::host;
 #endif
@@ -188,8 +210,13 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         vecmem::device_vector<device::sort_key> keys_device(keys_buffer);
         vecmem::device_vector<unsigned int> param_ids_device(param_ids_buffer);
 
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+        oneapi::dpl::sort_by_key(execPolicy, keys_device.begin(), keys_device.end(),
+                                 param_ids_device.begin());
+#else
         thrust::sort_by_key(execPolicy, keys_device.begin(), keys_device.end(),
                             param_ids_device.begin());
+#endif
 
         // Prepare the payload for the track fitting
         fit_payload<fitter_t> payload{det_view,
