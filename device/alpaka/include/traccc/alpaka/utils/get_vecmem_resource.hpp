@@ -74,6 +74,7 @@ struct host_device_types {
     using managed_memory_resource = vecmem::host_memory_resource;
     using device_copy = vecmem::copy;
     using async_copy = vecmem::copy;
+    using pointer_type_queue = std::false_type;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuCudaRt> {
@@ -82,6 +83,7 @@ struct host_device_types<::alpaka::TagGpuCudaRt> {
     using managed_memory_resource = vecmem::cuda::managed_memory_resource;
     using device_copy = vecmem::cuda::copy;
     using async_device_copy = vecmem::cuda::async_copy;
+    using pointer_type_queue = std::true_type;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuHipRt> {
@@ -90,6 +92,7 @@ struct host_device_types<::alpaka::TagGpuHipRt> {
     using managed_memory_resource = vecmem::hip::managed_memory_resource;
     using device_copy = vecmem::hip::copy;
     using async_device_copy = vecmem::hip::async_copy;
+    using pointer_type_queue = std::true_type;
 };
 template <>
 struct host_device_types<::alpaka::TagCpuSycl> {
@@ -98,6 +101,7 @@ struct host_device_types<::alpaka::TagCpuSycl> {
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
     using async_device_copy = vecmem::sycl::async_copy;
+    using pointer_type_queue = std::false_type;
 };
 template <>
 struct host_device_types<::alpaka::TagFpgaSyclIntel> {
@@ -106,6 +110,7 @@ struct host_device_types<::alpaka::TagFpgaSyclIntel> {
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
     using async_device_copy = vecmem::sycl::async_copy;
+    using pointer_type_queue = std::false_type;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuSyclIntel> {
@@ -114,6 +119,7 @@ struct host_device_types<::alpaka::TagGpuSyclIntel> {
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
     using async_device_copy = vecmem::sycl::async_copy;
+    using pointer_type_queue = std::false_type;
 };
 
 using device_memory_resource =
@@ -125,5 +131,7 @@ using managed_memory_resource =
 using device_copy = typename host_device_types<AccTag>::device_copy;
 using async_device_copy =
     typename host_device_types<AccTag>::async_device_copy;
+using pointer_type_queue =
+    typename host_device_types<AccTag>::pointer_type_queue;
 
 }  // namespace traccc::alpaka
