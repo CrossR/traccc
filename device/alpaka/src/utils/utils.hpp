@@ -45,7 +45,7 @@ template <typename TAcc>
 consteval Idx getWarpSize() {
     if constexpr (::alpaka::accMatchesTags<TAcc, ::alpaka::TagGpuCudaRt,
                                            ::alpaka::TagGpuSyclIntel>) {
-        return 32;
+        return 8;
     }
     if constexpr (::alpaka::accMatchesTags<TAcc, ::alpaka::TagGpuHipRt>) {
         return 64;

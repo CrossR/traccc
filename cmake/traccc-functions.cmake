@@ -78,13 +78,19 @@ endfunction( traccc_add_library )
 function( traccc_add_executable name )
 
    # Parse the function's options.
-   cmake_parse_arguments( ARG "" "" "LINK_LIBRARIES" ${ARGN} )
+   cmake_parse_arguments( ARG "" "" "LINK_LIBRARIES;COMPILE_OPTIONS;LINK_OPTIONS" ${ARGN} )
 
    # Set up the executable.
    set( exe_name "traccc_${name}" )
    add_executable( ${exe_name} ${ARG_UNPARSED_ARGUMENTS} )
    if( ARG_LINK_LIBRARIES )
       target_link_libraries( ${exe_name} PRIVATE ${ARG_LINK_LIBRARIES} )
+   endif()
+   if( ARG_COMPILE_LIBRARIES )
+       target_compile_libraries( ${exe_name} PRIVATE ${ARG_COMPILE_OPTIONS} )
+   endif()
+   if( ARG_LINK_OPTIONS )
+       target_link_options( ${exe_name} PRIVATE ${ARG_LINK_OPTIONS} )
    endif()
 
    # Make sure that the executable is available as "traccc::${name}" in every

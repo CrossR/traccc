@@ -141,7 +141,7 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
     auto queue = details::get_queue(m_queue);
-    Idx threadsPerBlock = getWarpSize<Acc>() * 2;
+    Idx threadsPerBlock = 8;
 
 #if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
     auto stream = reinterpret_cast<cudaStream_t>(m_queue.deviceNativeQueue());
@@ -239,11 +239,13 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         ::alpaka::memcpy(queue, bufAcc_fitPayload, bufHost_fitPayload);
 
         // Run the track fitting
+        std::cout << "Launching FitTrackKernel with " << n_tracks << std::endl;
         ::alpaka::exec<Acc>(
             queue, workDiv,
             FitTrackKernel<fitter_t,
                            typename fitter_t::detector_type::view_type>{},
             ::alpaka::getPtrNative(bufAcc_fitPayload));
+        std::cout << "Launched FitTrackKernel with " << n_tracks << std::endl;
     }
 
     ::alpaka::wait(queue);

@@ -8,6 +8,7 @@
 include( traccc-alpaka-functions )
 
 set(EXTRA_LIBS)
+set(LINK_OPTIONS)
 
 include(traccc-alpaka-functions)
 traccc_enable_language_alpaka()
@@ -19,6 +20,7 @@ elseif(alpaka_ACC_GPU_HIP_ENABLE)
   list(APPEND EXTRA_LIBS HIP::hiprt vecmem::hip)
 elseif(alpaka_ACC_SYCL_ENABLE)
   list(APPEND EXTRA_LIBS vecmem::sycl)
+  list(APPEND LINK_OPTIONS "-ftarget-register-alloc-mode=pvc:large")
 endif()
 
 set(LIBRARIES vecmem::core traccc::io traccc::performance
@@ -27,9 +29,9 @@ set(LIBRARIES vecmem::core traccc::io traccc::performance
 set(DETRAY detray::io detray::detectors)
 
 traccc_add_executable( seq_example_alpaka "seq_example_alpaka.cpp"
-    LINK_LIBRARIES ${LIBRARIES} ${DETRAY} )
+    LINK_LIBRARIES ${LIBRARIES} ${DETRAY} LINK_OPTIONS ${LINK_OPTIONS} )
 traccc_add_executable( seeding_example_alpaka "seeding_example_alpaka.cpp"
-    LINK_LIBRARIES ${LIBRARIES} )
+    LINK_LIBRARIES ${LIBRARIES} LINK_OPTIONS ${LINK_OPTIONS} )
 
 #
 # Set up the "throughput applications".
@@ -42,7 +44,9 @@ target_link_libraries( traccc_examples_alpaka
    traccc::core traccc::device_common traccc::alpaka ${EXTRA_LIBS})
 
 traccc_add_executable( throughput_st_alpaka "throughput_st.cpp"
-   LINK_LIBRARIES indicators::indicators ${LIBRARIES} ${DETRAY} traccc_examples_alpaka )
+   LINK_LIBRARIES indicators::indicators ${LIBRARIES} ${DETRAY} traccc_examples_alpaka
+   LINK_OPTIONS ${LINK_OPTIONS} )
 
 traccc_add_executable( throughput_mt_alpaka "throughput_mt.cpp"
-   LINK_LIBRARIES TBB::tbb indicators::indicators ${LIBRARIES} ${DETRAY} traccc_examples_alpaka )
+   LINK_LIBRARIES TBB::tbb indicators::indicators ${LIBRARIES} ${DETRAY} traccc_examples_alpaka
+   LINK_OPTIONS ${LINK_OPTIONS} )

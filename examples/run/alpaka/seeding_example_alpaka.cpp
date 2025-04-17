@@ -236,6 +236,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             /*-----------------
             hit file reading
             -----------------*/
+            std::cout << "Hit reading..." << std::endl;
             {
                 traccc::performance::timer t("Hit reading  (cpu)",
                                              elapsedTimes);
@@ -247,6 +248,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     input_opts.format);
 
             }  // stop measuring hit reading timer
+            std::cout << "Done!" << std::endl;
 
             /*----------------------------
                 Seeding algorithm
@@ -255,6 +257,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             // Alpaka
 
             // Copy the spacepoint data to the device.
+            std::cout << "Copying to device..." << std::endl;
             traccc::edm::spacepoint_collection::buffer
                 spacepoints_alpaka_buffer(
                     static_cast<unsigned int>(spacepoints_per_event.size()),
@@ -272,7 +275,9 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             async_copy(vecmem::get_data(measurements_per_event),
                  measurements_alpaka_buffer)
                 ->wait();
+            std::cout << "Done!" << std::endl;
 
+            std::cout << "Seeding..." << std::endl;
             {
                 traccc::performance::timer t("Seeding (alpaka)", elapsedTimes);
                 // Reconstruct the spacepoints into seeds.
@@ -280,6 +285,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     sa_alpaka(vecmem::get_data(spacepoints_alpaka_buffer));
                 queue.synchronize();
             }
+            std::cout << "Done!" << std::endl;
 
             // CPU
 
@@ -294,6 +300,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
 
             // Alpaka
 
+            std::cout << "Param Estimation..." << std::endl;
             {
                 traccc::performance::timer t("Track params (alpaka)",
                                              elapsedTimes);
@@ -303,6 +310,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                               {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
                 queue.synchronize();
             }  // stop measuring track params alpaka timer
+            std::cout << "Done!" << std::endl;
 
             // CPU
             if (accelerator_opts.compare_with_cpu) {
@@ -318,6 +326,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                Track Finding with CKF
               ------------------------*/
 
+            std::cout << "Finding..." << std::endl;
             {
                 traccc::performance::timer t("Track finding with CKF (alpaka)",
                                              elapsedTimes);
@@ -325,6 +334,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     device_finding(det_view, field, measurements_alpaka_buffer,
                                    params_alpaka_buffer);
             }
+            std::cout << "Done!" << std::endl;
 
             if (accelerator_opts.compare_with_cpu) {
                 traccc::performance::timer t("Track finding with CKF (cpu)",
@@ -338,6 +348,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                Track Fitting with KF
               ------------------------*/
 
+            std::cout << "Fitting..." << std::endl;
             {
                 traccc::performance::timer t("Track fitting with KF (alpaka)",
                                              elapsedTimes);
@@ -345,6 +356,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                 track_states_alpaka_buffer = device_fitting(
                     det_view, field, track_candidates_alpaka_buffer);
             }
+            std::cout << "Done!" << std::endl;
 
             if (accelerator_opts.compare_with_cpu) {
                 traccc::performance::timer t("Track fitting with KF (cpu)",
