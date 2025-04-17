@@ -14,17 +14,6 @@ namespace traccc::alpaka::details {
 opaque_queue::opaque_queue(std::size_t device) : m_device{device}, m_queue(nullptr) {
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, device);
     m_queue = std::make_unique<Queue>(devAcc);
-
-    // Get the native queue.
-    auto queue = ::alpaka::getNativeHandle(*m_queue);
-
-    if constexpr (traccc::alpaka::pointer_type_queue::value) {
-        // The native queue is a pointer to the queue.
-        m_deviceNativeQueue = reinterpret_cast<void*>(queue);
-    } else {
-        // The native queue is a reference to the queue.
-        m_deviceNativeQueue = reinterpret_cast<void*>(&queue);
-    }
 }
 
 }  // namespace traccc::cuda::details

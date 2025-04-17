@@ -14,6 +14,29 @@
 
 namespace traccc::alpaka {
 
+// Helper struct to handle backend-specific conversion
+template <bool IsPointer>
+struct NativeQueueConverter;
+
+// Specialization for backends where the native queue is a pointer (e.g., CUDA, HIP)
+template <>
+struct NativeQueueConverter<true> {
+    template <typename NativeQueue>
+    static void* convert(NativeQueue nativeQueue) {
+        return reinterpret_cast<void*>(nativeQueue);
+    }
+};
+
+// Specialization for backends where the native queue is not a pointer (e.g., SYCL)
+template <>
+struct NativeQueueConverter<false> {
+    template <typename NativeQueue>
+    static void* convert(NativeQueue& nativeQueue) {
+        return reinterpret_cast<void*>(&nativeQueue);
+    }
+};
+
+
 queue::queue(std::size_t device) {
 
     // Make sure that the queue is constructed on the correct device.
@@ -55,7 +78,8 @@ void* queue::alpakaQueue() const {
 
 void* queue::deviceNativeQueue() const {
 
-    return static_cast<void*>(m_queue->m_deviceNativeQueue);
+    auto nativeQueue = ::alpaka::getNativeHandle(*(m_queue->m_queue));
+    return NativeQueueConverter<pointer_type_queue::value>::convert(nativeQueue);
 }
 
 void queue::synchronize() const {
