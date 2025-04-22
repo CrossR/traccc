@@ -73,7 +73,7 @@ struct host_device_types {
     using host_memory_resource = vecmem::host_memory_resource;
     using managed_memory_resource = vecmem::host_memory_resource;
     using device_copy = vecmem::copy;
-    using async_copy = vecmem::copy;
+    using async_device_copy = vecmem::copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuCudaRt> {
