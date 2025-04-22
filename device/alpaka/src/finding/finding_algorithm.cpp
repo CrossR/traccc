@@ -101,7 +101,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
     auto queue = details::get_queue(m_queue);
-    Idx threadsPerBlock = 16;
+    Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
     // Copy setup
     m_copy.setup(seeds_buffer)->ignore();
@@ -153,6 +153,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 #endif
         ::alpaka::wait(queue);
         n_modules = static_cast<unsigned int>(uniques_end - uniques.begin());
+        std::cout << "There are " << n_modules << " modules." << std::endl;
     }
 
     // Get upper bounds of unique elements
@@ -198,6 +199,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     }
 
     const unsigned int n_seeds = m_copy.get_size(seeds_buffer);
+    std::cout << "There are " << n_seeds << " seeds." << std::endl;
 
     // Prepare input parameters with seeds
     bound_track_parameters_collection_types::buffer in_params_buffer(n_seeds,
@@ -264,6 +266,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             // candidates
             const unsigned int n_max_candidates =
                 n_in_params * m_cfg.max_num_branches_per_surface;
+            std::cout << "There are " << n_max_candidates << " max candidates." << std::endl;
 
             bound_track_parameters_collection_types::buffer
                 updated_params_buffer(
@@ -332,22 +335,57 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 .out_params_liveness_view =
                     vecmem::get_data(updated_liveness_buffer)};
 
+            // Debug print the sizes of the buffers
+            std::cout << "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv" << std::endl;
+            std::cout << "Step " << step << " parameters:" << std::endl;
+            std::cout << "measurements size: " << m_copy.get_size(measurements)
+                      << std::endl;
+            std::cout << "in_params size: " << m_copy.get_size(in_params_buffer)
+                      << std::endl;
+            std::cout << "param_liveness size: "
+                        << m_copy.get_size(param_liveness_buffer)
+                        << std::endl;
+            std::cout << "n_in_params: " << n_in_params << std::endl;
+            std::cout << "barcodes size: " << m_copy.get_size(barcodes_buffer)
+                      << std::endl;
+            std::cout << "upper_bounds size: "
+                        << m_copy.get_size(upper_bounds_buffer)
+                        << std::endl;
+            std::cout << "links size: " << m_copy.get_size(links_buffer)
+                        << std::endl;
+            std::cout << "prev_links_idx: " << prev_link_idx << std::endl;
+            std::cout << "curr_links_idx: "
+                        << step_to_link_idx_map[step] << std::endl;
+            std::cout << "step: " << step << std::endl;
+            std::cout << "out_params size: "
+                        << m_copy.get_size(updated_params_buffer)
+                        << std::endl;
+            std::cout << "out_params_liveness size: "
+                        << m_copy.get_size(updated_liveness_buffer)
+                        << std::endl;
+            std::cout << "--------------------------------------------" << std::endl;
+
             auto bufAcc_payload =
                 ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
             ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
+            ::alpaka::wait(queue);
 
             ::alpaka::exec<Acc>(queue, workDiv,
                                 FindTracksKernel<std::decay_t<detector_type>>{},
                                 m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
+            ::alpaka::wait(queue);
 
             std::swap(in_params_buffer, updated_params_buffer);
             std::swap(param_liveness_buffer, updated_liveness_buffer);
 
-            // Create a buffer for links
             step_to_link_idx_map[step + 1] = m_copy.get_size(links_buffer);
             n_candidates =
                 step_to_link_idx_map[step + 1] - step_to_link_idx_map[step];
+
             ::alpaka::wait(queue);
+            std::cout << "There are " << n_candidates << " candidates." << std::endl;
+            std::cout << step_to_link_idx_map[step + 1] << std::endl;
+            std::cout << step_to_link_idx_map[step] << std::endl;
         }
 
         if (n_candidates > 0) {
@@ -430,16 +468,71 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
                 ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
 
+                std::cout << "Pre-launch payload info:" << std::endl;
+                std::cout << "Next link index is "
+                            << step_to_link_idx_map[step + 1] << std::endl;
+                std::cout << "Current link index is "
+                            << step_to_link_idx_map[step] << std::endl;
+                std::cout << "Tips size is "
+                          << m_copy.get_size(tips_buffer) << std::endl;
+                std::cout << "Links size is "
+                            << m_copy.get_size(links_buffer) << std::endl;
+                std::cout << "Updated params size is "
+                            << m_copy.get_size(in_params_buffer) << std::endl;
+                std::cout << "Updated liveness size is "
+                            << m_copy.get_size(param_liveness_buffer)
+                            << std::endl;
+                std::cout << "Param ids size is "
+                            << m_copy.get_size(param_ids_buffer) << std::endl;
+                std::cout << "Tracks per seed size is "
+                            << m_copy.get_size(n_tracks_per_seed_buffer)
+                            << std::endl;
+                std::cout << "Barcodes size is "
+                            << m_copy.get_size(barcodes_buffer) << std::endl;
+                std::cout << "Upper bounds size is "
+                            << m_copy.get_size(upper_bounds_buffer)
+                            << std::endl;
+                std::cout << "--------------------------------------------"
+                          << std::endl;
+
                 ::alpaka::exec<Acc>(
                     queue, workDiv,
                     PropagateToNextSurfaceKernel<std::decay_t<propagator_type>,
                                                  std::decay_t<bfield_type>>{},
                     m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
                 ::alpaka::wait(queue);
+
+                std::cout << "There are " << n_candidates
+                          << " candidates in the collection." << std::endl;
+                std::cout << "Next link index is "
+                            << step_to_link_idx_map[step + 1] << std::endl;
+                std::cout << "Current link index is "
+                            << step_to_link_idx_map[step] << std::endl;
+                std::cout << "Tips size is "
+                          << m_copy.get_size(tips_buffer) << std::endl;
+                std::cout << "Links size is "
+                            << m_copy.get_size(links_buffer) << std::endl;
+                std::cout << "Updated params size is "
+                            << m_copy.get_size(in_params_buffer) << std::endl;
+                std::cout << "Updated liveness size is "
+                            << m_copy.get_size(param_liveness_buffer)
+                            << std::endl;
+                std::cout << "Param ids size is "
+                            << m_copy.get_size(param_ids_buffer) << std::endl;
+                std::cout << "Tracks per seed size is "
+                            << m_copy.get_size(n_tracks_per_seed_buffer)
+                            << std::endl;
+                std::cout << "Barcodes size is "
+                            << m_copy.get_size(barcodes_buffer) << std::endl;
+                std::cout << "Upper bounds size is "
+                            << m_copy.get_size(upper_bounds_buffer)
+                            << std::endl;
+                std::cout << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^" << std::endl;
             }
         }
 
         n_in_params = n_candidates;
+        std::cout << "There are " << n_in_params << " params." << std::endl;
     }
 
     TRACCC_DEBUG(
@@ -456,6 +549,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
     // Get the number of tips
     auto n_tips_total = m_copy.get_size(tips_buffer);
+    std::cout << "There are " << n_tips_total << " tips." << std::endl;
 
     // Create track candidate buffer
     track_candidate_container_types::buffer track_candidates_buffer{
@@ -515,6 +609,8 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     m_copy.setup(prune_candidates_buffer.headers)->ignore();
     m_copy.setup(prune_candidates_buffer.items)->ignore();
 
+    std::cout << "There are " << *n_valid_tracks << " valid tracks." << std::endl;
+
     if (*n_valid_tracks > 0) {
         Idx blocksPerGrid =
             (*n_valid_tracks + threadsPerBlock - 1) / threadsPerBlock;
@@ -531,6 +627,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             device::prune_tracks_payload{track_candidates_view,
                                          vecmem::get_data(valid_indices_buffer),
                                          prune_candidates_view});
+        ::alpaka::wait(queue);
     }
 
     return prune_candidates_buffer;
