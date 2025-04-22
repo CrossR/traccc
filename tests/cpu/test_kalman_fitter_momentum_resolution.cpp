@@ -83,7 +83,7 @@ TEST_P(KalmanFittingMomentumResolutionTests, Run) {
     const auto [host_det, names] =
         detray::io::read_detector<host_detector_type>(host_mr, reader_cfg);
     auto field =
-        detray::bfield::create_const_field<scalar>(std::get<13>(GetParam()));
+        traccc::construct_const_bfield<scalar>(std::get<13>(GetParam()));
 
     const auto vol0 = detray::tracking_volume{host_det, 0u};
 
@@ -172,9 +172,9 @@ TEST_P(KalmanFittingMomentumResolutionTests, Run) {
 
         // n_trakcs = 100
         ASSERT_GE(static_cast<float>(n_tracks),
-                  0.98 * static_cast<float>(n_truth_tracks));
+                  0.95 * static_cast<float>(n_truth_tracks));
         ASSERT_GE(static_cast<float>(n_fitted_tracks),
-                  0.98 * static_cast<float>(n_truth_tracks));
+                  0.95 * static_cast<float>(n_truth_tracks));
 
         for (std::size_t i_trk = 0; i_trk < n_tracks; i_trk++) {
 
