@@ -7,6 +7,9 @@
 
 #pragma once
 
+// Local include(s).
+#include "traccc/alpaka/utils/queue.hpp"
+
 // Alpaka include.
 #include <alpaka/alpaka.hpp>
 
@@ -64,5 +67,12 @@ inline WorkDiv makeWorkDiv(Idx blocks, Idx threadsOrElements) {
         return WorkDiv{blocksPerGrid, threadsPerBlock, elementsPerThread};
     }
 }
+
+namespace details {
+
+    /// Get concrete @c ::alpaka::Queue object out of our wrapper
+    Queue get_queue(const traccc::alpaka::queue& q);
+
+} // namespace details
 
 }  // namespace traccc::alpaka
