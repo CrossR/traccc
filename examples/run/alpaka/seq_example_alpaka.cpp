@@ -62,7 +62,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
             std::unique_ptr<const traccc::Logger> ilogger) {
     TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
-    traccc::alpaka::details::vecmem_objects vo{};
+    traccc::alpaka::queue queue;
+    traccc::alpaka::details::vecmem_objects vo(queue);
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q;
     vecmem::sycl::queue_wrapper qw{&q};

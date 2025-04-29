@@ -80,7 +80,8 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     using device_fitter_type =
         traccc::kalman_fitter<rk_stepper_type, device_navigator_type>;
 
-    traccc::alpaka::details::vecmem_objects vo{};
+    traccc::alpaka::queue queue;
+    traccc::alpaka::details::vecmem_objects vo(queue);
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q;
     vecmem::sycl::queue_wrapper qw{&q};

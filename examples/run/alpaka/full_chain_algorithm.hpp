@@ -120,11 +120,15 @@ class full_chain_algorithm
         const edm::silicon_cell_collection::host& cells) const override;
 
     private:
-    /// Host memory resource
-    ::vecmem::memory_resource& m_host_mr;
+
+    // Alpaka Queue
+    traccc::alpaka::queue m_queue;
 
     /// Vecmem resources object (PIMPL implementation)
     traccc::alpaka::details::vecmem_objects m_vecmem_objects;
+
+    /// Host memory resource
+    ::vecmem::memory_resource& m_host_mr;
 
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
     /// The SYCL queue to use for the computations

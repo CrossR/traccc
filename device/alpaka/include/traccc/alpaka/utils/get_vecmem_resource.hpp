@@ -8,11 +8,15 @@
 
 #pragma once
 
+// Local include(s).
+#include "traccc/alpaka/utils/queue.hpp"
+
 // VecMem include(s).
 #if defined(TRACCC_BUILD_CUDA)
 #include <vecmem/memory/cuda/device_memory_resource.hpp>
 #include <vecmem/memory/cuda/host_memory_resource.hpp>
 #include <vecmem/memory/cuda/managed_memory_resource.hpp>
+#include <vecmem/utils/cuda/async_copy.hpp>
 #include <vecmem/utils/cuda/copy.hpp>
 #endif
 
@@ -20,6 +24,7 @@
 #include <vecmem/memory/hip/device_memory_resource.hpp>
 #include <vecmem/memory/hip/host_memory_resource.hpp>
 #include <vecmem/memory/hip/managed_memory_resource.hpp>
+#include <vecmem/utils/hip/async_copy.hpp>
 #include <vecmem/utils/hip/copy.hpp>
 #endif
 
@@ -27,6 +32,7 @@
 #include <vecmem/memory/sycl/device_memory_resource.hpp>
 #include <vecmem/memory/sycl/host_memory_resource.hpp>
 #include <vecmem/memory/sycl/shared_memory_resource.hpp>
+#include <vecmem/utils/sycl/async_copy.hpp>
 #include <vecmem/utils/sycl/copy.hpp>
 #endif
 
@@ -45,18 +51,21 @@ class host_memory_resource;
 class device_memory_resource;
 class managed_memory_resource;
 class copy;
+class async_copy;
 }  // namespace cuda
 namespace hip {
 class host_memory_resource;
 class device_memory_resource;
 class managed_memory_resource;
 class copy;
+class async_copy;
 }  // namespace hip
 namespace sycl {
 class host_memory_resource;
 class device_memory_resource;
 class shared_memory_resource;
 class copy;
+class async_copy;
 }  // namespace sycl
 }  // namespace vecmem
 
@@ -71,7 +80,7 @@ namespace traccc::alpaka::details {
 class vecmem_objects {
 public:
 
-    vecmem_objects();
+    vecmem_objects(traccc::alpaka::queue& queue);
     ~vecmem_objects();
 
     // Delete copy and move semantics since we manage resources
@@ -84,6 +93,7 @@ public:
     vecmem::memory_resource& device_mr() const;
     vecmem::memory_resource& managed_mr() const;
     vecmem::copy& copy() const;
+    vecmem::copy& async_copy() const;
 
 private:
     struct impl;

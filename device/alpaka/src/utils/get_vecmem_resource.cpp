@@ -25,6 +25,7 @@ struct host_device_types {
     using host_memory_resource = vecmem::host_memory_resource;
     using managed_memory_resource = vecmem::host_memory_resource;
     using device_copy = vecmem::copy;
+    using device_async_copy = vecmem::copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuCudaRt> {
@@ -32,6 +33,7 @@ struct host_device_types<::alpaka::TagGpuCudaRt> {
     using host_memory_resource = vecmem::cuda::host_memory_resource;
     using managed_memory_resource = vecmem::cuda::managed_memory_resource;
     using device_copy = vecmem::cuda::copy;
+    using device_async_copy = vecmem::cuda::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuHipRt> {
@@ -39,6 +41,7 @@ struct host_device_types<::alpaka::TagGpuHipRt> {
     using host_memory_resource = vecmem::hip::host_memory_resource;
     using managed_memory_resource = vecmem::hip::managed_memory_resource;
     using device_copy = vecmem::hip::copy;
+    using device_async_copy = vecmem::hip::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagCpuSycl> {
@@ -46,6 +49,7 @@ struct host_device_types<::alpaka::TagCpuSycl> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using device_async_copy = vecmem::sycl::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagFpgaSyclIntel> {
@@ -53,6 +57,7 @@ struct host_device_types<::alpaka::TagFpgaSyclIntel> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using device_async_copy = vecmem::sycl::async_copy;
 };
 template <>
 struct host_device_types<::alpaka::TagGpuSyclIntel> {
@@ -60,6 +65,7 @@ struct host_device_types<::alpaka::TagGpuSyclIntel> {
     using host_memory_resource = vecmem::sycl::host_memory_resource;
     using managed_memory_resource = vecmem::sycl::shared_memory_resource;
     using device_copy = vecmem::sycl::copy;
+    using device_async_copy = vecmem::sycl::async_copy;
 };
 
 using AccTag = ::alpaka::AccToTag<Acc>;
@@ -70,15 +76,27 @@ using host_memory_resource =
 using managed_memory_resource =
     typename host_device_types<AccTag>::managed_memory_resource;
 using device_copy = typename host_device_types<AccTag>::device_copy;
+using device_async_copy =
+    typename host_device_types<AccTag>::device_async_copy;
 
 // Implementation struct for vecmem_objects
 struct vecmem_objects::impl {
     // Constructor
-    impl() {
-        m_host_mr = std::make_unique<host_memory_resource>();
-        m_device_mr = std::make_unique<device_memory_resource>();
-        m_managed_mr = std::make_unique<managed_memory_resource>();
-        m_copy = std::make_unique<device_copy>();
+    impl(traccc::alpaka::queue& queue) {
+        if constexpr (::alpaka::accMatchesTags<Acc, ::alpaka::TagGpuSyclIntel>) {
+            m_host_mr = std::make_unique<host_memory_resource>(queue);
+            m_device_mr = std::make_unique<device_memory_resource>(queue);
+            m_managed_mr = std::make_unique<managed_memory_resource>(queue);
+            m_copy = std::make_unique<device_copy>(queue);
+            m_async_copy =
+                std::make_unique<device_async_copy>(queue);
+        } else {
+            m_host_mr = std::make_unique<host_memory_resource>();
+            m_device_mr = std::make_unique<device_memory_resource>();
+            m_managed_mr = std::make_unique<managed_memory_resource>();
+            m_copy = std::make_unique<device_copy>();
+            m_async_copy = std::make_unique<device_async_copy>(queue.deviceNativeQueue());
+        }
     }
 
     // Destructor
@@ -88,10 +106,12 @@ struct vecmem_objects::impl {
     std::unique_ptr<vecmem::memory_resource> m_device_mr;
     std::unique_ptr<vecmem::memory_resource> m_managed_mr;
     std::unique_ptr<vecmem::copy> m_copy;
+    std::unique_ptr<vecmem::copy> m_async_copy;
 };
 
 // Constructor and destructor
-vecmem_objects::vecmem_objects() : m_impl(std::make_unique<impl>()) {}
+vecmem_objects::vecmem_objects(traccc::alpaka::queue& queue)
+    : m_impl(std::make_unique<impl>(queue)) {}
 vecmem_objects::~vecmem_objects() = default;
 
 // Implementation of the getter methods
@@ -109,6 +129,10 @@ vecmem::memory_resource& vecmem_objects::managed_mr() const {
 
 vecmem::copy& vecmem_objects::copy() const {
     return *(m_impl->m_copy);
+}
+
+vecmem::copy& vecmem_objects::async_copy() const {
+    return *(m_impl->m_async_copy);
 }
 
 }  // namespace traccc::alpaka::details
