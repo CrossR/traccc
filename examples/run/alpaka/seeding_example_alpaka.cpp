@@ -44,11 +44,6 @@
 #include "traccc/seeding/track_params_estimation.hpp"
 #include "traccc/utils/propagation.hpp"
 
-#ifdef ALPAKA_ACC_SYCL_ENABLED
-#include <sycl/sycl.hpp>
-#include <vecmem/utils/sycl/queue_wrapper.hpp>
-#endif
-
 // System include(s).
 #include <cmath>
 #include <exception>
