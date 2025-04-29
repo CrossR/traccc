@@ -77,30 +77,26 @@ using managed_memory_resource =
 using device_copy = typename host_device_types<AccTag>::device_copy;
 using device_async_copy = typename host_device_types<AccTag>::device_async_copy;
 
-// Implementation struct for vecmem_objects
 struct vecmem_objects::impl {
-    // Constructor
     impl(traccc::alpaka::queue& queue) {
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-            vecmem::sycl::queue_wrapper qw{queue.deviceNativeQueue()};
+        vecmem::sycl::queue_wrapper qw{queue.deviceNativeQueue()};
 
-            m_host_mr = std::make_unique<host_memory_resource>(qw);
-            m_device_mr = std::make_unique<device_memory_resource>(qw);
-            m_managed_mr = std::make_unique<managed_memory_resource>(qw);
-            m_copy = std::make_unique<device_copy>(qw);
-            m_async_copy =
-                std::make_unique<device_async_copy>(qw);
+        m_host_mr = std::make_unique<host_memory_resource>(qw);
+        m_device_mr = std::make_unique<device_memory_resource>(qw);
+        m_managed_mr = std::make_unique<managed_memory_resource>(qw);
+        m_copy = std::make_unique<device_copy>(qw);
+        m_async_copy = std::make_unique<device_async_copy>(qw);
 #else
-            m_host_mr = std::make_unique<host_memory_resource>();
-            m_device_mr = std::make_unique<device_memory_resource>();
-            m_managed_mr = std::make_unique<managed_memory_resource>();
-            m_copy = std::make_unique<device_copy>();
-            m_async_copy =
-                std::make_unique<device_async_copy>(queue.deviceNativeQueue());
+        m_host_mr = std::make_unique<host_memory_resource>();
+        m_device_mr = std::make_unique<device_memory_resource>();
+        m_managed_mr = std::make_unique<managed_memory_resource>();
+        m_copy = std::make_unique<device_copy>();
+        m_async_copy =
+            std::make_unique<device_async_copy>(queue.deviceNativeQueue());
 #endif
     }
 
-    // Destructor
     ~impl() = default;
 
     std::unique_ptr<vecmem::memory_resource> m_host_mr;
@@ -110,12 +106,10 @@ struct vecmem_objects::impl {
     std::unique_ptr<vecmem::copy> m_async_copy;
 };
 
-// Constructor and destructor
 vecmem_objects::vecmem_objects(traccc::alpaka::queue& queue)
     : m_impl(std::make_unique<impl>(queue)) {}
 vecmem_objects::~vecmem_objects() = default;
 
-// Implementation of the getter methods
 vecmem::memory_resource& vecmem_objects::host_mr() const {
     return *(m_impl->m_host_mr);
 }

@@ -70,9 +70,9 @@ inline WorkDiv makeWorkDiv(Idx blocks, Idx threadsOrElements) {
 
 namespace details {
 
-    /// Get concrete @c ::alpaka::Queue object out of our wrapper
-    Queue get_queue(const traccc::alpaka::queue& q);
+/// Get concrete @c ::alpaka::Queue object out of our wrapper
+Queue get_queue(const traccc::alpaka::queue& q);
 
-} // namespace details
+}  // namespace details
 
 }  // namespace traccc::alpaka

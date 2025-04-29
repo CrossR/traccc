@@ -120,7 +120,6 @@ class full_chain_algorithm
         const edm::silicon_cell_collection::host& cells) const override;
 
     private:
-
     // Alpaka Queue
     traccc::alpaka::queue m_queue;
 

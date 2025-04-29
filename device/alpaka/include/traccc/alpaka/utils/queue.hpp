@@ -28,7 +28,8 @@ class queue {
 
     public:
     /// Invalid/default device identifier
-    static constexpr std::size_t INVALID_DEVICE = std::numeric_limits<std::size_t>::max();
+    static constexpr std::size_t INVALID_DEVICE =
+        std::numeric_limits<std::size_t>::max();
 
     /// Construct a new queue (possibly for a specified device)
     queue(std::size_t device = INVALID_DEVICE);
@@ -48,8 +49,8 @@ class queue {
     /// Access a typeless pointer to the managed @c ::alpaka::Queue object
     void* alpakaQueue() const;
 
-    /// Access a typeless pointer to the underlying, device-specific queue object
-    /// I.e. @c cudaStream_t for CUDA, @c hipStream_t for HIP, etc.
+    /// Access a typeless pointer to the underlying, device-specific queue
+    /// object I.e. @c cudaStream_t for CUDA, @c hipStream_t for HIP, etc.
     void* deviceNativeQueue() const;
 
     /// Wait for all queued tasks from the queue to complete

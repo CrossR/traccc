@@ -7,13 +7,15 @@
 
 // Local include(s).
 #include "opaque_queue.hpp"
+
 #include "traccc/alpaka/utils/get_vecmem_resource.hpp"
 
 namespace traccc::alpaka::details {
 
-opaque_queue::opaque_queue(std::size_t device) : m_device{device}, m_queue(nullptr) {
+opaque_queue::opaque_queue(std::size_t device)
+    : m_device{device}, m_queue(nullptr) {
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, device);
     m_queue = std::make_unique<Queue>(devAcc);
 }
 
-}  // namespace traccc::cuda::details
+}  // namespace traccc::alpaka::details

@@ -72,18 +72,16 @@ class async_copy;
 namespace traccc::alpaka::details {
 
 /**
- * @brief Class that creates and owns vecmem resources, providing a generic interface
- *
- * This class uses the PIMPL pattern to hide implementation details, such that
- * users of traccc::alpaka do not need Alpaka.
+ * @brief Class that creates and owns vecmem resources, providing a generic
+ * interface, such that a traccc::alpaka user does not need to know about the
+ * underlying implementation.
  */
 class vecmem_objects {
-public:
 
+    public:
     vecmem_objects(traccc::alpaka::queue& queue);
     ~vecmem_objects();
 
-    // Delete copy and move semantics since we manage resources
     vecmem_objects(const vecmem_objects&) = delete;
     vecmem_objects& operator=(const vecmem_objects&) = delete;
     vecmem_objects(vecmem_objects&&) = delete;
@@ -95,7 +93,7 @@ public:
     vecmem::copy& copy() const;
     vecmem::copy& async_copy() const;
 
-private:
+    private:
     struct impl;
     std::unique_ptr<impl> m_impl;
 };

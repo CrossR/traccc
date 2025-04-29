@@ -7,9 +7,9 @@
 
 // Local include(s).
 #include "traccc/alpaka/utils/queue.hpp"
-#include "traccc/alpaka/utils/get_vecmem_resource.hpp"
 
 #include "opaque_queue.hpp"
+#include "traccc/alpaka/utils/get_vecmem_resource.hpp"
 #include "utils.hpp"
 
 namespace traccc::alpaka {
