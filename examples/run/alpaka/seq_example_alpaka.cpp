@@ -67,7 +67,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
 
     vecmem::memory_resource& host_mr = vo.host_mr();
     vecmem::memory_resource& device_mr = vo.device_mr();
-    vecmem::copy& copy = vo.copy();
+    vecmem::copy& copy = vo.async_copy();
     traccc::memory_resource mr{device_mr, &host_mr};
     vecmem::copy host_copy;
 

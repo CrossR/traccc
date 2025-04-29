@@ -29,7 +29,7 @@ full_chain_algorithm::full_chain_algorithm(
       m_vecmem_objects(m_queue),
       m_host_mr(host_mr),
       m_device_mr(m_vecmem_objects.device_mr()),
-      m_copy(m_vecmem_objects.copy()),
+      m_copy(m_vecmem_objects.async_copy()),
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),
       m_field_vec{0.f, 0.f, finder_config.bFieldInZ},
@@ -85,7 +85,7 @@ full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
       m_vecmem_objects(m_queue),
       m_host_mr(parent.m_host_mr),
       m_device_mr(m_vecmem_objects.device_mr()),
-      m_copy(m_vecmem_objects.copy()),
+      m_copy(m_vecmem_objects.async_copy()),
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),
       m_field_vec(parent.m_field_vec),

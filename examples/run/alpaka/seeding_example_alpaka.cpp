@@ -85,6 +85,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     traccc::alpaka::details::vecmem_objects vo(queue);
 
     vecmem::copy& copy = vo.copy();
+    vecmem::copy& async_copy = vo.async_copy();
     vecmem::memory_resource& host_mr = vo.host_mr();
     vecmem::memory_resource& device_mr = vo.device_mr();
     vecmem::memory_resource& mng_mr = vo.managed_mr();
