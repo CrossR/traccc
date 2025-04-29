@@ -87,11 +87,12 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     traccc::sycl::copy copy(qw);
     traccc::sycl::host_memory_resource host_mr(qw);
     traccc::sycl::device_memory_resource device_mr(qw);
+    traccc::sycl::managed_memory_resource mng_mr(qw);
 #else
-    // Access the vecmem resources directly from the vecmem_objects instance
+    vecmem::copy& copy = vo.copy();
     vecmem::memory_resource& host_mr = vo.host_mr();
     vecmem::memory_resource& device_mr = vo.device_mr();
-    vecmem::copy& copy = vo.copy();
+    vecmem::memory_resource& mng_mr = vo.managed_mr();
 #endif
     traccc::memory_resource mr{device_mr, &host_mr};
     vecmem::copy host_copy;

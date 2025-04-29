@@ -65,15 +65,13 @@ namespace traccc::alpaka::details {
 /**
  * @brief Class that creates and owns vecmem resources, providing a generic interface
  *
- * This class uses the PIMPL pattern to hide implementation details and avoid
- * preprocessor-heavy code in client code.
+ * This class uses the PIMPL pattern to hide implementation details, such that
+ * users of traccc::alpaka do not need Alpaka.
  */
 class vecmem_objects {
 public:
-    /// Constructor that initializes appropriate memory resources
-    vecmem_objects();
 
-    /// Destructor
+    vecmem_objects();
     ~vecmem_objects();
 
     // Delete copy and move semantics since we manage resources
@@ -82,23 +80,13 @@ public:
     vecmem_objects(vecmem_objects&&) = delete;
     vecmem_objects& operator=(vecmem_objects&&) = delete;
 
-    /// Get the host memory resource
     vecmem::memory_resource& host_mr() const;
-
-    /// Get the device memory resource
     vecmem::memory_resource& device_mr() const;
-
-    /// Get the managed memory resource (unified memory)
     vecmem::memory_resource& managed_mr() const;
-
-    /// Get the copy utility
     vecmem::copy& copy() const;
 
 private:
-    /// Implementation details
     struct impl;
-
-    /// Pointer to implementation
     std::unique_ptr<impl> m_impl;
 };
 

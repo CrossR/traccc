@@ -26,14 +26,15 @@ full_chain_algorithm::full_chain_algorithm(
     host_detector_type* detector, std::unique_ptr<const traccc::Logger> logger)
     : messaging(logger->clone()),
       m_host_mr(host_mr),
+      m_vecmem_objects(),
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
       m_queue(::sycl::queue()),
       m_queue_wrapper(&m_queue),
       m_device_mr(m_queue_wrapper),
       m_copy(m_queue_wrapper),
 #else
-      m_device_mr(),
-      m_copy(),
+      m_device_mr(m_vecmem_objects.device_mr()),
+      m_copy(m_vecmem_objects.copy()),
 #endif
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),
@@ -84,14 +85,15 @@ full_chain_algorithm::full_chain_algorithm(
 full_chain_algorithm::full_chain_algorithm(const full_chain_algorithm& parent)
     : messaging(parent.logger().clone()),
       m_host_mr(parent.m_host_mr),
+      m_vecmem_objects(),
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
       m_queue(parent.m_queue),
       m_queue_wrapper(&m_queue),
       m_device_mr(m_queue_wrapper),
       m_copy(m_queue_wrapper),
 #else
-      m_device_mr(),
-      m_copy(),
+      m_device_mr(m_vecmem_objects.device_mr()),
+      m_copy(m_vecmem_objects.copy()),
 #endif
       m_cached_device_mr(
           std::make_unique<::vecmem::binary_page_memory_resource>(m_device_mr)),

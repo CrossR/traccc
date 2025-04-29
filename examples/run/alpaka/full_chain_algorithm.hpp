@@ -123,16 +123,19 @@ class full_chain_algorithm
     /// Host memory resource
     ::vecmem::memory_resource& m_host_mr;
 
+    /// Vecmem resources object (PIMPL implementation)
+    traccc::alpaka::details::vecmem_objects m_vecmem_objects;
+
 #if defined(ALPAKA_ACC_SYCL_ENABLED)
     /// The SYCL queue to use for the computations
     ::sycl::queue m_queue;
     vecmem::sycl::queue_wrapper m_queue_wrapper;
 #endif
 
-    /// Device memory resource
-    traccc::alpaka::vecmem_resources::device_memory_resource m_device_mr;
-    /// Memory copy object
-    traccc::alpaka::vecmem_resources::device_copy m_copy;
+    /// Device memory resource - initialized from vecmem_objects
+    std::reference_wrapper<vecmem::memory_resource> m_device_mr;
+    /// Memory copy object - initialized from vecmem_objects
+    std::reference_wrapper<vecmem::copy> m_copy;
     /// Device caching memory resource
     std::unique_ptr<::vecmem::binary_page_memory_resource> m_cached_device_mr;
 
