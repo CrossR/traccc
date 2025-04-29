@@ -80,21 +80,20 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     using device_fitter_type =
         traccc::kalman_fitter<rk_stepper_type, device_navigator_type>;
 
+    traccc::alpaka::details::vecmem_objects vo{};
 #ifdef ALPAKA_ACC_SYCL_ENABLED
     ::sycl::queue q;
     vecmem::sycl::queue_wrapper qw{&q};
-    traccc::alpaka::vecmem_resources::device_copy copy(qw);
-    traccc::alpaka::vecmem_resources::host_memory_resource host_mr(qw);
-    traccc::alpaka::vecmem_resources::device_memory_resource device_mr(qw);
-    traccc::alpaka::vecmem_resources::managed_memory_resource mng_mr(qw);
-    traccc::memory_resource mr{device_mr, &host_mr};
+    traccc::sycl::copy copy(qw);
+    traccc::sycl::host_memory_resource host_mr(qw);
+    traccc::sycl::device_memory_resource device_mr(qw);
 #else
-    traccc::alpaka::vecmem_resources::device_copy copy;
-    traccc::alpaka::vecmem_resources::host_memory_resource host_mr;
-    traccc::alpaka::vecmem_resources::device_memory_resource device_mr;
-    traccc::alpaka::vecmem_resources::managed_memory_resource mng_mr;
-    traccc::memory_resource mr{device_mr, &host_mr};
+    // Access the vecmem resources directly from the vecmem_objects instance
+    vecmem::memory_resource& host_mr = vo.host_mr();
+    vecmem::memory_resource& device_mr = vo.device_mr();
+    vecmem::copy& copy = vo.copy();
 #endif
+    traccc::memory_resource mr{device_mr, &host_mr};
     vecmem::copy host_copy;
 
     // Performance writer
