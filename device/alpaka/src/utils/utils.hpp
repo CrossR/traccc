@@ -7,6 +7,7 @@
 
 #pragma once
 
+// Alpaka include.
 #include <alpaka/alpaka.hpp>
 
 namespace traccc::alpaka {
