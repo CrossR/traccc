@@ -82,19 +82,11 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
 
     traccc::alpaka::queue queue;
     traccc::alpaka::details::vecmem_objects vo(queue);
-#ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q;
-    vecmem::sycl::queue_wrapper qw{&q};
-    traccc::sycl::copy copy(qw);
-    traccc::sycl::host_memory_resource host_mr(qw);
-    traccc::sycl::device_memory_resource device_mr(qw);
-    traccc::sycl::managed_memory_resource mng_mr(qw);
-#else
+
     vecmem::copy& copy = vo.copy();
     vecmem::memory_resource& host_mr = vo.host_mr();
     vecmem::memory_resource& device_mr = vo.device_mr();
     vecmem::memory_resource& mng_mr = vo.managed_mr();
-#endif
     traccc::memory_resource mr{device_mr, &host_mr};
     vecmem::copy host_copy;
 

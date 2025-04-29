@@ -17,8 +17,7 @@
 
 namespace traccc::alpaka::details {
 
-// Templated struct to get the correct memory resource for the current
-// accelerator type.
+// Per-accelerator types for vecmem.
 template <typename T>
 struct host_device_types {
     using device_memory_resource = vecmem::host_memory_resource;
@@ -76,27 +75,29 @@ using host_memory_resource =
 using managed_memory_resource =
     typename host_device_types<AccTag>::managed_memory_resource;
 using device_copy = typename host_device_types<AccTag>::device_copy;
-using device_async_copy =
-    typename host_device_types<AccTag>::device_async_copy;
+using device_async_copy = typename host_device_types<AccTag>::device_async_copy;
 
 // Implementation struct for vecmem_objects
 struct vecmem_objects::impl {
     // Constructor
     impl(traccc::alpaka::queue& queue) {
-        if constexpr (::alpaka::accMatchesTags<Acc, ::alpaka::TagGpuSyclIntel>) {
-            m_host_mr = std::make_unique<host_memory_resource>(queue);
-            m_device_mr = std::make_unique<device_memory_resource>(queue);
-            m_managed_mr = std::make_unique<managed_memory_resource>(queue);
-            m_copy = std::make_unique<device_copy>(queue);
+#ifdef ALPAKA_ACC_SYCL_ENABLED
+            vecmem::sycl::queue_wrapper qw{queue.deviceNativeQueue()};
+
+            m_host_mr = std::make_unique<host_memory_resource>(qw);
+            m_device_mr = std::make_unique<device_memory_resource>(qw);
+            m_managed_mr = std::make_unique<managed_memory_resource>(qw);
+            m_copy = std::make_unique<device_copy>(qw);
             m_async_copy =
-                std::make_unique<device_async_copy>(queue);
-        } else {
+                std::make_unique<device_async_copy>(qw);
+#else
             m_host_mr = std::make_unique<host_memory_resource>();
             m_device_mr = std::make_unique<device_memory_resource>();
             m_managed_mr = std::make_unique<managed_memory_resource>();
             m_copy = std::make_unique<device_copy>();
-            m_async_copy = std::make_unique<device_async_copy>(queue.deviceNativeQueue());
-        }
+            m_async_copy =
+                std::make_unique<device_async_copy>(queue.deviceNativeQueue());
+#endif
     }
 
     // Destructor
