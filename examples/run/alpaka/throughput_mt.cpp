@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     static const bool use_host_caching = true;
     return traccc::throughput_mt<
         traccc::alpaka::full_chain_algorithm,
-        traccc::alpaka::host_memory_resource>(
+        vecmem::host_memory_resource>(
         "Multi-threaded Alpaka GPU throughput tests", argc, argv,
         use_host_caching);
 }

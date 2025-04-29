@@ -42,12 +42,7 @@
 #include "traccc/seeding/seeding_algorithm.hpp"
 #include "traccc/seeding/silicon_pixel_spacepoint_formation_algorithm.hpp"
 #include "traccc/seeding/track_params_estimation.hpp"
-
-// Detray include(s).
-#include <detray/io/frontend/detector_reader.hpp>
-#include <detray/navigation/navigator.hpp>
-#include <detray/propagator/propagator.hpp>
-#include <detray/propagator/rk_stepper.hpp>
+#include "traccc/utils/propagation.hpp"
 
 // System include(s).
 #include <exception>
@@ -67,20 +62,13 @@ int seq_run(const traccc::opts::detector& detector_opts,
             std::unique_ptr<const traccc::Logger> ilogger) {
     TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
-    // Memory resources used by the application.
     traccc::alpaka::queue queue;
-#ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q =
-        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
-    vecmem::sycl::queue_wrapper qw{&q};
-    traccc::alpaka::host_memory_resource host_mr(qw);
-    traccc::alpaka::device_memory_resource device_mr(qw);
-#else
-    traccc::alpaka::host_memory_resource host_mr;
-    traccc::alpaka::device_memory_resource device_mr;
-#endif
+    traccc::alpaka::details::vecmem_objects vo(queue);
+
+    vecmem::memory_resource& host_mr = vo.host_mr();
+    vecmem::memory_resource& device_mr = vo.device_mr();
+    vecmem::copy& copy = vo.copy();
     traccc::memory_resource mr{device_mr, &host_mr};
-    traccc::alpaka::async_device_copy copy(queue.deviceNativeQueue());
     vecmem::copy host_copy;
 
     // Construct the detector description object.

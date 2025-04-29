@@ -10,7 +10,7 @@
 // Local include(s).
 #include "traccc/alpaka/utils/queue.hpp"
 
-// Alpaka include(s).
+// Alpaka include.
 #include <alpaka/alpaka.hpp>
 
 namespace traccc::alpaka {

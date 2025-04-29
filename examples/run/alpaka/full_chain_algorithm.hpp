@@ -27,12 +27,7 @@
 #include "traccc/utils/algorithm.hpp"
 #include "traccc/utils/bfield.hpp"
 #include "traccc/utils/messaging.hpp"
-
-// Detray include(s).
-#include <detray/core/detector.hpp>
-#include <detray/navigation/navigator.hpp>
-#include <detray/propagator/propagator.hpp>
-#include <detray/propagator/rk_stepper.hpp>
+#include "traccc/utils/propagation.hpp"
 
 // VecMem include(s).
 #include <vecmem/containers/vector.hpp>
@@ -126,20 +121,20 @@ class full_chain_algorithm
         const edm::silicon_cell_collection::host& cells) const override;
 
     private:
+
+    // Alpaka Queue
+    traccc::alpaka::queue m_queue;
+
+    /// Vecmem resources object (PIMPL implementation)
+    traccc::alpaka::details::vecmem_objects m_vecmem_objects;
+
     /// Host memory resource
     ::vecmem::memory_resource& m_host_mr;
-    /// Alpaka queue to use
-    queue m_queue;
 
-#if defined(ALPAKA_ACC_SYCL_ENABLED)
-    /// The SYCL queue wrapper to use for the computations
-    vecmem::sycl::queue_wrapper m_queue_wrapper;
-#endif
-
-    /// Device memory resource
-    traccc::alpaka::device_memory_resource m_device_mr;
-    /// Memory copy object
-    mutable traccc::alpaka::async_device_copy m_copy;
+    /// Device memory resource - initialized from vecmem_objects
+    std::reference_wrapper<vecmem::memory_resource> m_device_mr;
+    /// Memory copy object - initialized from vecmem_objects
+    mutable std::reference_wrapper<vecmem::copy> m_copy;
     /// Device caching memory resource
     std::unique_ptr<::vecmem::binary_page_memory_resource> m_cached_device_mr;
 
