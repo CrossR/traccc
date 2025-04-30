@@ -52,12 +52,9 @@ class queue {
     /// Access a typeless pointer to the managed @c ::alpaka::Queue object
     void* alpakaQueue() const;
 
-#if defined(TRACCC_BUILD_CUDA) || defined(TRACCC_BUILD_HIP) || \
-    defined(TRACCC_BUILD_SYCL)
     /// Access a typeless pointer to the underlying, device-specific queue
     /// object I.e. @c cudaStream_t for CUDA, @c hipStream_t for HIP, etc.
     void* deviceNativeQueue() const;
-#endif
 
     private:
     /// Smart pointer to the managed @c ::alpaka::Queue object
