@@ -60,9 +60,11 @@ void* queue::alpakaQueue() const {
 
 void* queue::deviceNativeQueue() const {
 
-#if defined(TRACCC_BUILD_CUDA) || defined(TRACCC_BUILD_HIP) || \
-    defined(TRACCC_BUILD_SYCL)
+#if defined(TRACCC_BUILD_CUDA) || defined(TRACCC_BUILD_HIP)
     return static_cast<void*>(::alpaka::getNativeHandle(*(m_queue->m_queue)));
+#elif defined(TRACCC_BUILD_SYCL)
+    auto nativeQueue = ::alpaka::getNativeHandle(*(m_queue->m_queue));
+    return static_cast<void*>(&nativeQueue);
 #else
     // TODO: What is the best way to handle this?
     //       Not having the method is a pain for other parts of the code,
