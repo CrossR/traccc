@@ -92,8 +92,12 @@ struct vecmem_objects::impl {
         m_device_mr = std::make_unique<device_memory_resource>();
         m_managed_mr = std::make_unique<managed_memory_resource>();
         m_copy = std::make_unique<device_copy>();
-        m_async_copy =
-            std::make_unique<device_async_copy>(queue.deviceNativeQueue());
+        if constexpr (std::is_same_v<device_copy, device_async_copy>) {
+            m_async_copy = std::make_unique<device_copy>();
+        } else {
+            m_async_copy =
+                std::make_unique<device_async_copy>(queue.deviceNativeQueue());
+        }
 #endif
     }
 
