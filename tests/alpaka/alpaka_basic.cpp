@@ -143,23 +143,24 @@ GTEST_TEST(AlpakaBasic, VecMemOp) {
     // types here.
 
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-    namespace backend = vecmem::sycl;
     ::sycl::queue q;
     vecmem::sycl::queue_wrapper qw{&q};
     vecmem::sycl::copy vm_copy(qw);
+    vecmem::sycl::host_memory_resource host_mr(qw);
+    vecmem::sycl::device_memory_resource device_mr(qw);
 #elif defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
-    namespace backend = vecmem::cuda;
     vecmem::cuda::copy vm_copy;
+    vecmem::cuda::host_memory_resource host_mr;
+    vecmem::cuda::device_memory_resource device_mr;
 #elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    namespace backend = vecmem::hip;
     vecmem::hip::copy vm_copy;
+    vecmem::hip::host_memory_resource host_mr;
+    vecmem::hip::device_memory_resource device_mr;
 #else
-    namespace backend = vecmem;
     vecmem::copy vm_copy;
+    vecmem::host_memory_resource host_mr;
+    vecmem::host_memory_resource device_mr;
 #endif
-
-    backend::device_memory_resource host_mr;
-    backend::device_memory_resource device_mr;
 
     vecmem::vector<float> host_vector{n, &host_mr};
 
