@@ -48,19 +48,22 @@ std::size_t queue::device() const {
     return m_queue->m_device;
 }
 
+void queue::synchronize() const {
+
+    ::alpaka::wait(*(m_queue->m_queue));
+}
+
 void* queue::alpakaQueue() const {
 
     return static_cast<void*>(m_queue->m_queue.get());
 }
 
+#if defined(TRACCC_BUILD_CUDA) || defined(TRACCC_BUILD_HIP) || \
+    defined(TRACCC_BUILD_SYCL)
 void* queue::deviceNativeQueue() const {
 
     return static_cast<void*>(::alpaka::getNativeHandle(*(m_queue->m_queue)));
 }
-
-void queue::synchronize() const {
-
-    ::alpaka::wait(*(m_queue->m_queue));
-}
+#endif
 
 }  // namespace traccc::alpaka

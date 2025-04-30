@@ -46,15 +46,18 @@ class queue {
     /// Device that the queue is associated to
     std::size_t device() const;
 
+    /// Wait for all queued tasks from the queue to complete
+    void synchronize() const;
+
     /// Access a typeless pointer to the managed @c ::alpaka::Queue object
     void* alpakaQueue() const;
 
+#if defined(TRACCC_BUILD_CUDA) || defined(TRACCC_BUILD_HIP) || \
+    defined(TRACCC_BUILD_SYCL)
     /// Access a typeless pointer to the underlying, device-specific queue
     /// object I.e. @c cudaStream_t for CUDA, @c hipStream_t for HIP, etc.
     void* deviceNativeQueue() const;
-
-    /// Wait for all queued tasks from the queue to complete
-    void synchronize() const;
+#endif
 
     private:
     /// Smart pointer to the managed @c ::alpaka::Queue object
