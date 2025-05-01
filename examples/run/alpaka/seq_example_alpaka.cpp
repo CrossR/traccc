@@ -63,18 +63,19 @@ int seq_run(const traccc::opts::detector& detector_opts,
     TRACCC_LOCAL_LOGGER(std::move(ilogger));
 
     // Memory resources used by the application.
+    traccc::alpaka::queue queue;
 #ifdef ALPAKA_ACC_SYCL_ENABLED
-    ::sycl::queue q;
+    ::sycl::queue q =
+        *(reinterpret_cast<::sycl::queue*>(queue.deviceNativeQueue()));
     vecmem::sycl::queue_wrapper qw{&q};
-    traccc::alpaka::vecmem_resources::device_copy copy(qw);
-    traccc::alpaka::vecmem_resources::host_memory_resource host_mr(qw);
-    traccc::alpaka::vecmem_resources::device_memory_resource device_mr(qw);
+    traccc::alpaka::host_memory_resource host_mr(qw);
+    traccc::alpaka::device_memory_resource device_mr(qw);
 #else
-    traccc::alpaka::vecmem_resources::device_copy copy;
-    traccc::alpaka::vecmem_resources::host_memory_resource host_mr;
-    traccc::alpaka::vecmem_resources::device_memory_resource device_mr;
+    traccc::alpaka::host_memory_resource host_mr;
+    traccc::alpaka::device_memory_resource device_mr;
 #endif
     traccc::memory_resource mr{device_mr, &host_mr};
+    traccc::alpaka::async_device_copy copy(queue.deviceNativeQueue());
     vecmem::copy host_copy;
 
     // Construct the detector description object.
@@ -175,20 +176,22 @@ int seq_run(const traccc::opts::detector& detector_opts,
                                        logger().clone("HostFittingAlg"));
 
     traccc::alpaka::clusterization_algorithm ca_alpaka(
-        mr, copy, clusterization_opts, logger().clone("AlpakaClusteringAlg"));
+        mr, copy, queue, clusterization_opts,
+        logger().clone("AlpakaClusteringAlg"));
     traccc::alpaka::measurement_sorting_algorithm ms_alpaka(
-        copy, logger().clone("AlpakaMeasSortingAlg"));
+        mr, copy, queue, logger().clone("AlpakaMeasSortingAlg"));
     device_spacepoint_formation_algorithm sf_alpaka(
-        mr, copy, logger().clone("AlpakaSpFormationAlg"));
+        mr, copy, queue, logger().clone("AlpakaSpFormationAlg"));
     traccc::alpaka::seeding_algorithm sa_alpaka(
         seeding_opts.seedfinder, {seeding_opts.seedfinder},
-        seeding_opts.seedfilter, mr, copy, logger().clone("AlpakaSeedingAlg"));
+        seeding_opts.seedfilter, mr, copy, queue,
+        logger().clone("AlpakaSeedingAlg"));
     traccc::alpaka::track_params_estimation tp_alpaka(
-        mr, copy, logger().clone("AlpakaTrackParEstAlg"));
+        mr, copy, queue, logger().clone("AlpakaTrackParEstAlg"));
     device_finding_algorithm finding_alg_alpaka(
-        finding_cfg, mr, copy, logger().clone("AlpakaFindingAlg"));
+        finding_cfg, mr, copy, queue, logger().clone("AlpakaFindingAlg"));
     device_fitting_algorithm fitting_alg_alpaka(
-        fitting_cfg, mr, copy, logger().clone("AlpakaFittingAlg"));
+        fitting_cfg, mr, copy, queue, logger().clone("AlpakaFittingAlg"));
 
     traccc::device::container_d2h_copy_alg<
         traccc::track_candidate_container_types>
@@ -259,6 +262,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 measurements_alpaka_buffer =
                     ca_alpaka(cells_buffer, device_det_descr);
                 ms_alpaka(measurements_alpaka_buffer);
+                queue.synchronize();
             }  // stop measuring clusterization alpaka timer
 
             // CPU
@@ -279,6 +283,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         "Spacepoint formation (alpaka)", elapsedTimes);
                     spacepoints_alpaka_buffer = sf_alpaka(
                         device_detector_view, measurements_alpaka_buffer);
+                    queue.synchronize();
                 }  // stop measuring spacepoint formation alpaka timer
 
                 // CPU
@@ -295,6 +300,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
                     traccc::performance::timer t("Seeding (alpaka)",
                                                  elapsedTimes);
                     seeds_alpaka_buffer = sa_alpaka(spacepoints_alpaka_buffer);
+                    queue.synchronize();
                 }  // stop measuring seeding alpaka timer
 
                 // CPU
@@ -311,6 +317,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
                     params_alpaka_buffer = tp_alpaka(
                         measurements_alpaka_buffer, spacepoints_alpaka_buffer,
                         seeds_alpaka_buffer, field_vec);
+                    queue.synchronize();
                 }  // stop measuring track params timer
 
                 // CPU
@@ -379,6 +386,7 @@ int seq_run(const traccc::opts::detector& detector_opts,
         auto track_candidates_alpaka =
             copy_track_candidates(track_candidates_buffer);
         auto track_states_alpaka = copy_track_states(track_states_buffer);
+        queue.synchronize();
 
         if (accelerator_opts.compare_with_cpu) {
 
