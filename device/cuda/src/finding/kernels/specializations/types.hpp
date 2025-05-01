@@ -13,15 +13,11 @@
 #include "traccc/finding/actors/interaction_register.hpp"
 #include "traccc/geometry/detector.hpp"
 #include "traccc/utils/detector_type_utils.hpp"
+#include "traccc/utils/propagation.hpp"
 
-// Detray include(s)
-#include <detray/propagator/actors.hpp>
-#include <detray/propagator/propagator.hpp>
-#include <detray/propagator/rk_stepper.hpp>
-
-namespace traccc::cuda::kernels {
+namespace traccc::cuda {
 using default_finding_algorithm =
     finding_algorithm<stepper_for_t<traccc::default_detector::device>,
                       navigator_for_t<traccc::default_detector::device>>;
 
-}  // namespace traccc::cuda::kernels
+}  // namespace traccc::cuda
