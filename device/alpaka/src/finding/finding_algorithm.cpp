@@ -54,8 +54,12 @@ namespace traccc::alpaka {
 template <typename stepper_t, typename navigator_t>
 finding_algorithm<stepper_t, navigator_t>::finding_algorithm(
     const config_type& cfg, const traccc::memory_resource& mr,
-    vecmem::copy& copy, std::unique_ptr<const Logger> logger)
-    : messaging(std::move(logger)), m_cfg(cfg), m_mr(mr), m_copy(copy) {}
+    vecmem::copy& copy, queue& q, std::unique_ptr<const Logger> logger)
+    : messaging(std::move(logger)),
+      m_cfg(cfg),
+      m_mr(mr),
+      m_copy(copy),
+      m_queue(q) {}
 
 template <typename stepper_t, typename navigator_t>
 track_candidate_container_types::buffer
@@ -73,16 +77,24 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Setup alpaka
     auto devHost = ::alpaka::getDevByIdx(::alpaka::Platform<Host>{}, 0u);
     auto devAcc = ::alpaka::getDevByIdx(::alpaka::Platform<Acc>{}, 0u);
-    auto queue = Queue{devAcc};
+    auto queue = details::get_queue(m_queue);
     Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
     // Copy setup
     m_copy.setup(seeds_buffer)->ignore();
 
-#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED) || defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    auto thrustExecPolicy = thrust::device;
+#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
+    auto stream = reinterpret_cast<cudaStream_t>(m_queue.deviceNativeQueue());
+    auto execPolicy =
+        thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(m_mr.main)))
+            .on(stream);
+#elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
+    auto stream = reinterpret_cast<hipStream_t>(m_queue.deviceNativeQueue());
+    auto execPolicy = thrust::hip_rocprim::par_nosync(
+                          std::pmr::polymorphic_allocator(&(m_mr.main)))
+                          .on(stream);
 #else
-    auto thrustExecPolicy = thrust::host;
+    auto execPolicy = thrust::host;
 #endif
 
     /*****************************************************************
@@ -101,10 +113,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     {
         measurement_collection_types::device uniques(uniques_buffer);
 
-        measurement* uniques_end =
-            thrust::unique_copy(thrustExecPolicy, measurements.ptr(),
-                                measurements.ptr() + n_measurements,
-                                uniques.begin(), measurement_equal_comp());
+        measurement* uniques_end = thrust::unique_copy(
+            execPolicy, measurements.ptr(), measurements.ptr() + n_measurements,
+            uniques.begin(), measurement_equal_comp());
+        ::alpaka::wait(queue);
         n_modules = static_cast<unsigned int>(uniques_end - uniques.begin());
     }
 
@@ -118,7 +130,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
         measurement_collection_types::device uniques(uniques_buffer);
 
-        thrust::upper_bound(thrustExecPolicy, measurements.ptr(),
+        thrust::upper_bound(execPolicy, measurements.ptr(),
                             measurements.ptr() + n_measurements,
                             uniques.begin(), uniques.begin() + n_modules,
                             upper_bounds.begin(), measurement_sort_comp());
@@ -141,7 +153,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                             device::make_barcode_sequence_payload{
                                 vecmem::get_data(uniques_buffer),
                                 vecmem::get_data(barcodes_buffer)});
-        ::alpaka::wait(queue);
     }
 
     const unsigned int n_seeds = m_copy.get_size(seeds_buffer);
@@ -198,7 +209,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 device::apply_interaction_payload<std::decay_t<detector_type>>{
                     det_view, n_in_params, vecmem::get_data(in_params_buffer),
                     vecmem::get_data(param_liveness_buffer)});
-            ::alpaka::wait(queue);
         }
 
         /*****************************************************************
@@ -283,7 +293,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             auto bufAcc_payload =
                 ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
             ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
-            ::alpaka::wait(queue);
 
             ::alpaka::exec<Acc>(queue, workDiv,
                                 FindTracksKernel<std::decay_t<detector_type>>{},
@@ -330,9 +339,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     keys_buffer);
                 vecmem::device_vector<unsigned int> param_ids_device(
                     param_ids_buffer);
-                thrust::sort_by_key(thrustExecPolicy, keys_device.begin(),
+                thrust::sort_by_key(execPolicy, keys_device.begin(),
                                     keys_device.end(),
                                     param_ids_device.begin());
+                ::alpaka::wait(queue);
             }
 
             /*****************************************************************
@@ -373,7 +383,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 auto bufAcc_payload =
                     ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
                 ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
-                ::alpaka::wait(queue);
 
                 ::alpaka::exec<Acc>(
                     queue, workDiv,
@@ -422,7 +431,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     unsigned int* n_valid_tracks =
         ::alpaka::getPtrNative(bufHost_n_valid_tracks);
     ::alpaka::memset(queue, bufHost_n_valid_tracks, 0);
-    ::alpaka::wait(queue);
 
     // @Note: nBlocks can be zero in case there is no tip. This happens when
     // chi2_max config is set tightly and no tips are found
@@ -445,7 +453,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 vecmem::get_data(links_buffer), vecmem::get_data(tips_buffer),
                 track_candidates_view, vecmem::get_data(valid_indices_buffer),
                 ::alpaka::getPtrNative(n_valid_tracks_device)});
-        ::alpaka::wait(queue);
 
         // Global counter object: Device -> Host
         ::alpaka::memcpy(queue, bufHost_n_valid_tracks, n_valid_tracks_device);
@@ -478,7 +485,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             device::prune_tracks_payload{track_candidates_view,
                                          vecmem::get_data(valid_indices_buffer),
                                          prune_candidates_view});
-        ::alpaka::wait(queue);
     }
 
     return prune_candidates_buffer;
