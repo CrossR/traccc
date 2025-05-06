@@ -10,6 +10,7 @@
 
 #include "../utils/barrier.hpp"
 #include "../utils/get_queue.hpp"
+#include "../utils/parallel_algorithms.hpp"
 #include "../utils/thread_id.hpp"
 #include "../utils/utils.hpp"
 #include "./kernels/apply_interaction.hpp"
@@ -37,14 +38,6 @@
 #include <vecmem/containers/jagged_device_vector.hpp>
 #include <vecmem/containers/vector.hpp>
 #include <vecmem/memory/unique_ptr.hpp>
-
-// Thrust include(s).
-#include <thrust/copy.h>
-#include <thrust/execution_policy.h>
-#include <thrust/fill.h>
-#include <thrust/scan.h>
-#include <thrust/sort.h>
-#include <thrust/unique.h>
 
 // System include(s).
 #include <cassert>
@@ -84,20 +77,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Copy setup
     m_copy.setup(seeds_buffer)->ignore();
 
-#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy =
-        thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(m_mr.main)))
-            .on(stream);
-#elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy = thrust::hip_rocprim::par_nosync(
-                          std::pmr::polymorphic_allocator(&(m_mr.main)))
-                          .on(stream);
-#else
-    auto execPolicy = thrust::host;
-#endif
-
     /*****************************************************************
      * Measurement Operations
      *****************************************************************/
@@ -114,9 +93,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     {
         measurement_collection_types::device uniques(uniques_buffer);
 
-        measurement* uniques_end = thrust::unique_copy(
-            execPolicy, measurements.ptr(), measurements.ptr() + n_measurements,
-            uniques.begin(), measurement_equal_comp());
+        measurement* uniques_end =
+            details::unique_copy(m_queue, m_mr, measurements.ptr(),
+                                 measurements.ptr() + n_measurements,
+                                 uniques.begin(), measurement_equal_comp());
         ::alpaka::wait(queue);
         n_modules = static_cast<unsigned int>(uniques_end - uniques.begin());
     }
@@ -131,10 +111,10 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
         measurement_collection_types::device uniques(uniques_buffer);
 
-        thrust::upper_bound(execPolicy, measurements.ptr(),
-                            measurements.ptr() + n_measurements,
-                            uniques.begin(), uniques.begin() + n_modules,
-                            upper_bounds.begin(), measurement_sort_comp());
+        details::upper_bound(m_queue, m_mr, measurements.ptr(),
+                             measurements.ptr() + n_measurements,
+                             uniques.begin(), uniques.begin() + n_modules,
+                             upper_bounds.begin(), measurement_sort_comp());
     }
 
     /*****************************************************************
@@ -340,9 +320,9 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     keys_buffer);
                 vecmem::device_vector<unsigned int> param_ids_device(
                     param_ids_buffer);
-                thrust::sort_by_key(execPolicy, keys_device.begin(),
-                                    keys_device.end(),
-                                    param_ids_device.begin());
+                details::sort_by_key(m_queue, m_mr, keys_device.begin(),
+                                     keys_device.end(),
+                                     param_ids_device.begin());
                 ::alpaka::wait(queue);
             }
 

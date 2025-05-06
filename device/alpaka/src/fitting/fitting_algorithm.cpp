@@ -9,6 +9,7 @@
 #include "traccc/alpaka/fitting/fitting_algorithm.hpp"
 
 #include "../utils/get_queue.hpp"
+#include "../utils/parallel_algorithms.hpp"
 #include "../utils/utils.hpp"
 #include "traccc/fitting/device/fill_sort_keys.hpp"
 #include "traccc/fitting/device/fit.hpp"
@@ -19,10 +20,6 @@
 
 // detray include(s).
 #include <detray/propagator/rk_stepper.hpp>
-
-// Thrust include(s).
-#include <thrust/execution_policy.h>
-#include <thrust/sort.h>
 
 // System include(s).
 #include <memory_resource>
@@ -83,20 +80,6 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
     auto queue = details::get_queue(m_queue);
     Idx threadsPerBlock = getWarpSize<Acc>() * 2;
 
-#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy =
-        thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(m_mr.main)))
-            .on(stream);
-#elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy = thrust::hip_rocprim::par_nosync(
-                          std::pmr::polymorphic_allocator(&(m_mr.main)))
-                          .on(stream);
-#else
-    auto execPolicy = thrust::host;
-#endif
-
     // Number of tracks
     const track_candidate_container_types::const_device::header_vector::
         size_type n_tracks = m_copy.get_size(track_candidates_view.headers);
@@ -148,8 +131,8 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
         vecmem::device_vector<device::sort_key> keys_device(keys_buffer);
         vecmem::device_vector<unsigned int> param_ids_device(param_ids_buffer);
 
-        thrust::sort_by_key(execPolicy, keys_device.begin(), keys_device.end(),
-                            param_ids_device.begin());
+        details::sort_by_key(m_queue, m_mr, keys_device.begin(),
+                             keys_device.end(), param_ids_device.begin());
 
         // Prepare the payload for the track fitting
         device::fit_payload<fitter_t> payload{
