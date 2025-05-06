@@ -13,6 +13,7 @@
 #include "tests/cca_test.hpp"
 #include "traccc/alpaka/clusterization/clusterization_algorithm.hpp"
 #include "traccc/alpaka/utils/vecmem_objects.hpp"
+#include "traccc/alpaka/utils/queue.hpp"
 #include "traccc/geometry/silicon_detector_description.hpp"
 
 namespace {
@@ -31,7 +32,7 @@ cca_function_t get_f_with(traccc::clustering_config cfg) {
         vecmem::memory_resource& device_mr = vo.device_mr();
         vecmem::copy copy = vo.copy();
 
-        traccc::alpaka::clusterization_algorithm cc({device_mr}, copy, cfg);
+        traccc::alpaka::clusterization_algorithm cc({device_mr}, copy, queue, cfg);
 
         traccc::silicon_detector_description::buffer dd_buffer{
             static_cast<
