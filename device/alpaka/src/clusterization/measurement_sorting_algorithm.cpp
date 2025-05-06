@@ -8,6 +8,7 @@
 // Local include(s).
 #include "traccc/alpaka/clusterization/measurement_sorting_algorithm.hpp"
 #include "../utils/get_queue.hpp"
+#include "../utils/parallel_algorithms.hpp"
 
 // Thrust include(s).
 #include <thrust/execution_policy.h>
@@ -27,9 +28,6 @@ measurement_sorting_algorithm::output_type
 measurement_sorting_algorithm::operator()(
     const measurement_collection_types::view& measurements_view) const {
 
-    // Get a convenience variable for the queue that we'll be using.
-    auto queue = details::get_queue(m_queue);
-
     // Get the number of measurements. This is necessary because the input
     // container may not be fixed sized. And we can't give invalid pointers /
     // iterators to Thrust.
@@ -37,23 +35,9 @@ measurement_sorting_algorithm::operator()(
         m_copy.get().get_size(measurements_view);
 
     // Sort the measurements in place
-#if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy =
-        thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(m_mr.main)))
-            .on(stream);
-#elif defined(ALPAKA_ACC_GPU_HIP_ENABLED)
-    auto stream = ::alpaka::getNativeHandle(queue);
-    auto execPolicy = thrust::hip_rocprim::par_nosync(
-                          std::pmr::polymorphic_allocator(&(m_mr.main)))
-                          .on(stream);
-#else
-    auto execPolicy = thrust::host;
-#endif
-
-    thrust::sort(execPolicy, measurements_view.ptr(),
-                 measurements_view.ptr() + n_measurements,
-                 measurement_sort_comp());
+    details::sort(m_queue, m_mr, measurements_view.ptr(),
+                  measurements_view.ptr() + n_measurements,
+                  measurement_sort_comp());
 
     // Return the view of the sorted measurements.
     return measurements_view;

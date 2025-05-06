@@ -67,7 +67,8 @@ void sort(queue &q, const traccc::memory_resource mr,
 #endif
 }
 
-template <typename RandomAccessIterator1, typename RandomAccessIterator2, typename Compare>
+template <typename RandomAccessIterator1, typename RandomAccessIterator2,
+          typename Compare>
 void sort_by_key(queue &q, const traccc::memory_resource &mr,
                  RandomAccessIterator1 keys_first,
                  RandomAccessIterator1 keys_last,
