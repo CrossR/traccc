@@ -30,6 +30,7 @@
 #pragma clang diagnostic ignored "-Wsign-conversion"
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wold-style-cast"
 #include <oneapi/dpl/algorithm>
 #include <oneapi/dpl/execution>
 #pragma clang diagnostic pop
@@ -37,7 +38,7 @@
 
 namespace traccc::alpaka::details {
 
-inline auto getExecutionPolicy(queue &q, const traccc::memory_resource &mr) {
+inline auto getExecutionPolicy(queue &q, [[maybe_unused]] const traccc::memory_resource &mr) {
 #if defined(ALPAKA_ACC_GPU_CUDA_ENABLED)
     auto stream = ::alpaka::getNativeHandle(get_queue(q));
     return thrust::cuda::par_nosync(std::pmr::polymorphic_allocator(&(mr.main)))
