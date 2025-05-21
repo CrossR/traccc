@@ -151,6 +151,297 @@ TRACCC_HOST_DEVICE inline void find_tracks(
     const finding_config& cfg, const find_tracks_payload<detector_t>& payload,
     const find_tracks_shared_payload& shared_payload);
 
+template <typename detector_t>
+void debug_find_tracks(
+    std::string title, vecmem::copy& copy,
+    const find_tracks_payload<detector_t>& payload,
+    const find_tracks_payload<detector_t>* previous_payload) {
+
+    // Pull out every thing from the payload
+    const auto& in_params_view = payload.in_params_view;
+    const auto& in_params_liveness_view = payload.in_params_liveness_view;
+    const auto& n_in_params = payload.n_in_params;
+    const auto& barcodes_view = payload.barcodes_view;
+    const auto& upper_bounds_view = payload.upper_bounds_view;
+    const auto& links_view = payload.links_view;
+    const auto& prev_links_idx = payload.prev_links_idx;
+    const auto& curr_links_idx = payload.curr_links_idx;
+    const auto& step = payload.step;
+    const auto& out_params_view = payload.out_params_view;
+    const auto& out_params_liveness_view = payload.out_params_liveness_view;
+    const auto& tips_view = payload.tips_view;
+    const auto& n_tracks_per_seed_view = payload.n_tracks_per_seed_view;
+
+    const bool hasPreviousPayload = previous_payload != nullptr;
+
+    // Start the debug output
+    printf("=========================\n");
+    printf("========== %s - %u ============\n", title.c_str(), step);
+    printf("=========================\n");
+
+    // Print the sizes to start
+    printf("Parameters:\n");
+    printf("  n_in_params: %u\n", n_in_params);
+    printf("  prev_links_idx: %u\n", prev_links_idx);
+    printf("  curr_links_idx: %u\n", curr_links_idx);
+    printf("  step: %u\n", step);
+    printf("  tips_view.size(): %u\n", copy.get_size(tips_view));
+    printf("  links_view.size(): %u\n", copy.get_size(links_view));
+    printf("  in_params_view.size(): %u\n", copy.get_size(in_params_view));
+    printf("  in_params_liveness_view.size(): %u\n",
+           copy.get_size(in_params_liveness_view));
+    printf("  out_params_liveness_view.size(): %u\n",
+           copy.get_size(out_params_liveness_view));
+    printf("  out_params_view.size(): %u\n", copy.get_size(out_params_view));
+    printf("  barcodes.size(): %u\n", copy.get_size(barcodes_view));
+    printf("  upper_bounds.size(): %u\n", copy.get_size(upper_bounds_view));
+
+    bool links_size_changed = false;
+    bool params_size_changed = false;
+    bool params_liveness_size_changed = false;
+    bool out_params_size_changed = false;
+    bool out_params_liveness_size_changed = false;
+    bool tips_size_changed = false;
+    bool n_tracks_per_seed_size_changed = false;
+
+    if (hasPreviousPayload) {
+        if (copy.get_size(previous_payload->links_view) !=
+            copy.get_size(links_view)) {
+            links_size_changed = true;
+            printf("  WARNING: links_view.size() changed from %u to %u\n",
+                   copy.get_size(previous_payload->links_view),
+                   copy.get_size(links_view));
+        }
+        if (copy.get_size(previous_payload->in_params_view) !=
+            copy.get_size(in_params_view)) {
+            params_size_changed = true;
+            printf("  WARNING: in_params_view.size() changed from %u to %u\n",
+                   copy.get_size(previous_payload->in_params_view),
+                   copy.get_size(in_params_view));
+        }
+        if (copy.get_size(previous_payload->in_params_liveness_view) !=
+            copy.get_size(in_params_liveness_view)) {
+            params_liveness_size_changed = true;
+            printf(
+                "  WARNING: in_params_liveness_view.size() changed from "
+                "%u to %u\n",
+                copy.get_size(previous_payload->in_params_liveness_view),
+                copy.get_size(in_params_liveness_view));
+        }
+        if (copy.get_size(previous_payload->out_params_view) !=
+            copy.get_size(out_params_view)) {
+            out_params_size_changed = true;
+            printf("  WARNING: out_params_view.size() changed from %u to %u\n",
+                   copy.get_size(previous_payload->out_params_view),
+                   copy.get_size(out_params_view));
+        }
+        if (copy.get_size(previous_payload->out_params_liveness_view) !=
+            copy.get_size(out_params_liveness_view)) {
+            out_params_liveness_size_changed = true;
+            printf(
+                "  WARNING: out_params_liveness_view.size() changed from "
+                "%u to %u\n",
+                copy.get_size(previous_payload->out_params_liveness_view),
+                copy.get_size(out_params_liveness_view));
+        }
+        if (copy.get_size(previous_payload->tips_view) !=
+            copy.get_size(tips_view)) {
+            tips_size_changed = true;
+            printf("  WARNING: tips_view.size() changed from %u to %u\n",
+                   copy.get_size(previous_payload->tips_view),
+                   copy.get_size(tips_view));
+        }
+        if (copy.get_size(previous_payload->n_tracks_per_seed_view) !=
+            copy.get_size(n_tracks_per_seed_view)) {
+            n_tracks_per_seed_size_changed = true;
+            printf(
+                "  WARNING: n_tracks_per_seed.size() changed from %u to %u\n",
+                copy.get_size(previous_payload->n_tracks_per_seed_view),
+                copy.get_size(n_tracks_per_seed_view));
+        }
+    }
+
+    // Start to actually inspect the data
+    // First, make views...
+    vecmem::vector<candidate_link> links_view_host;
+    bound_track_parameters_collection_types::host in_params_view_host;
+    vecmem::vector<unsigned int> in_params_liveness_view_host;
+    bound_track_parameters_collection_types::host out_params_view_host;
+    vecmem::vector<unsigned int> out_params_liveness_view_host;
+    vecmem::vector<unsigned int> tips_view_host;
+    vecmem::vector<unsigned int> n_tracks_per_seed_view_host;
+
+    // Then copy from the device to the host
+    copy(links_view, links_view_host)->wait();
+    copy(in_params_view, in_params_view_host)->wait();
+    copy(in_params_liveness_view, in_params_liveness_view_host)->wait();
+    copy(out_params_view, out_params_view_host)->wait();
+    copy(out_params_liveness_view, out_params_liveness_view_host)->wait();
+    copy(tips_view, tips_view_host)->wait();
+    copy(n_tracks_per_seed_view, n_tracks_per_seed_view_host)->wait();
+
+    // Repeat for the previous payload
+    vecmem::vector<candidate_link> links_view_host_old;
+    bound_track_parameters_collection_types::host in_params_view_host_old;
+    vecmem::vector<unsigned int> in_params_liveness_view_host_old;
+    bound_track_parameters_collection_types::host out_params_view_host_old;
+    vecmem::vector<unsigned int> out_params_liveness_view_host_old;
+    vecmem::vector<unsigned int> tips_view_host_old;
+    vecmem::vector<unsigned int> n_tracks_per_seed_view_host_old;
+
+    // Copy, if we have a previous payload
+    copy(hasPreviousPayload ? previous_payload->links_view : links_view,
+         links_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->in_params_view
+                            : in_params_view,
+         in_params_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->in_params_liveness_view
+                            : in_params_liveness_view,
+         in_params_liveness_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->out_params_view
+                            : out_params_view,
+         out_params_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->out_params_liveness_view
+                            : out_params_liveness_view,
+         out_params_liveness_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->tips_view : tips_view,
+         tips_view_host_old)
+        ->wait();
+    copy(hasPreviousPayload ? previous_payload->n_tracks_per_seed_view
+                            : n_tracks_per_seed_view,
+         n_tracks_per_seed_view_host_old)
+        ->wait();
+
+    // Print out all the unsigned ints first...
+    printf("in_params_liveness_view:\n");
+    for (unsigned int i = 0; i < in_params_liveness_view_host.size(); ++i) {
+        printf("  %u: %u\n", i, in_params_liveness_view_host[i]);
+
+        if (hasPreviousPayload && params_liveness_size_changed == false) {
+            if (in_params_liveness_view_host[i] !=
+                in_params_liveness_view_host_old[i]) {
+                printf(
+                    "  WARNING: in_params_liveness_view[%u] changed from "
+                    "%u to %u\n",
+                    i, in_params_liveness_view_host_old[i],
+                    in_params_liveness_view_host[i]);
+            }
+        }
+    }
+
+    printf("out_params_liveness_view:\n");
+    for (unsigned int i = 0; i < out_params_liveness_view_host.size(); ++i) {
+        printf("  %u: %u\n", i, out_params_liveness_view_host[i]);
+
+        if (hasPreviousPayload && out_params_liveness_size_changed == false) {
+            if (out_params_liveness_view_host[i] !=
+                out_params_liveness_view_host_old[i]) {
+                printf(
+                    "  WARNING: out_params_liveness_view[%u] changed from "
+                    "%u to %u\n",
+                    i, out_params_liveness_view_host_old[i],
+                    out_params_liveness_view_host[i]);
+            }
+        }
+    }
+
+    printf("n_tracks_per_seed_view:\n");
+    for (unsigned int i = 0; i < n_tracks_per_seed_view_host.size(); ++i) {
+        printf("  %u: %u\n", i, n_tracks_per_seed_view_host[i]);
+
+        if (hasPreviousPayload && n_tracks_per_seed_size_changed == false) {
+            if (n_tracks_per_seed_view_host[i] !=
+                n_tracks_per_seed_view_host_old[i]) {
+                printf(
+                    "  WARNING: n_tracks_per_seed_view[%u] changed from "
+                    "%u to %u\n",
+                    i, n_tracks_per_seed_view_host_old[i],
+                    n_tracks_per_seed_view_host[i]);
+            }
+        }
+    }
+
+    printf("tips_view:\n");
+    for (unsigned int i = 0; i < tips_view_host.size(); ++i) {
+        printf("  %u: %u\n", i, tips_view_host[i]);
+
+        if (hasPreviousPayload && tips_size_changed == false) {
+            if (tips_view_host[i] != tips_view_host_old[i]) {
+                printf("  WARNING: tips_view[%u] changed from %u to %u\n", i,
+                       tips_view_host_old[i], tips_view_host[i]);
+            }
+        }
+    }
+
+    // Now the links...
+    printf("links_view:\n");
+    for (unsigned int i = 0; i < links_view_host.size(); ++i) {
+        printf("  %u: ", i);
+        auto link = links_view_host[i];
+        printf(
+            "step: %u, previous_candidate_idx: %u, meas_idx: %u, "
+            "seed_idx: %u, n_skipped: %u, chi2: %f\n",
+            link.step, link.previous_candidate_idx, link.meas_idx,
+            link.seed_idx, link.n_skipped, link.chi2);
+
+        if (hasPreviousPayload && links_size_changed == false) {
+            if (links_view_host[i].step != links_view_host_old[i].step) {
+                printf(
+                    "  WARNING: links_view[%u].step changed from %u to "
+                    "%u\n",
+                    i, links_view_host_old[i].step, links_view_host[i].step);
+            }
+            if (links_view_host[i].previous_candidate_idx !=
+                links_view_host_old[i].previous_candidate_idx) {
+                printf(
+                    "  WARNING: links_view[%u].previous_candidate_idx "
+                    "changed from %u to %u\n",
+                    i, links_view_host_old[i].previous_candidate_idx,
+                    links_view_host[i].previous_candidate_idx);
+            }
+        }
+    }
+
+    // Finally, the parameters...
+    printf("params_view:\n");
+    for (unsigned int i = 0; i < in_params_view_host.size(); ++i) {
+        printf("  %u: ", i);
+        auto param = in_params_view_host[i];
+        std::cout << param << std::endl;
+
+        if (hasPreviousPayload && params_size_changed == false) {
+            if (in_params_view_host[i] != in_params_view_host_old[i]) {
+                std::cout << "  WARNING: in_params_view[" << i
+                          << "] changed from " << in_params_view_host_old[i]
+                          << " to " << in_params_view_host[i] << std::endl;
+            }
+        }
+    }
+
+    printf("out_params_view:\n");
+    for (unsigned int i = 0; i < out_params_view_host.size(); ++i) {
+        printf("  %u: ", i);
+        auto param = out_params_view_host[i];
+        std::cout << param << std::endl;
+
+        if (hasPreviousPayload && out_params_size_changed == false) {
+            if (out_params_view_host[i] != out_params_view_host_old[i]) {
+                std::cout << "  WARNING: out_params_view[" << i
+                          << "] changed from " << out_params_view_host_old[i]
+                          << " to " << out_params_view_host[i] << std::endl;
+            }
+        }
+    }
+
+    // Find the debug output
+    printf("-------------------------\n");
+}
+
 }  // namespace traccc::device
 
 // Include the implementation.

@@ -85,7 +85,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Get copy of barcode uniques
     measurement_collection_types::buffer uniques_buffer{n_measurements,
                                                         m_mr.main};
-    m_copy.setup(uniques_buffer)->ignore();
+    m_copy.setup(uniques_buffer)->wait();
 
     {
         measurement_collection_types::device uniques(uniques_buffer);
@@ -101,7 +101,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Get upper bounds of unique elements
     vecmem::data::vector_buffer<unsigned int> upper_bounds_buffer{n_modules,
                                                                   m_mr.main};
-    m_copy.setup(upper_bounds_buffer)->ignore();
+    m_copy.setup(upper_bounds_buffer)->wait();
 
     {
         vecmem::device_vector<unsigned int> upper_bounds(upper_bounds_buffer);
@@ -120,7 +120,7 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
     vecmem::data::vector_buffer<detray::geometry::barcode> barcodes_buffer{
         n_modules, m_mr.main};
-    m_copy.setup(barcodes_buffer)->ignore();
+    m_copy.setup(barcodes_buffer)->wait();
 
     {
         Idx blocksPerGrid =
@@ -137,17 +137,17 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
     // Prepare input parameters with seeds
     bound_track_parameters_collection_types::buffer in_params_buffer(n_seeds,
                                                                      m_mr.main);
-    m_copy.setup(in_params_buffer)->ignore();
-    m_copy(seeds_view, in_params_buffer)->ignore();
+    m_copy.setup(in_params_buffer)->wait();
+    m_copy(seeds_view, in_params_buffer)->wait();
     vecmem::data::vector_buffer<unsigned int> param_liveness_buffer(n_seeds,
                                                                     m_mr.main);
-    m_copy.setup(param_liveness_buffer)->ignore();
-    m_copy.memset(param_liveness_buffer, 1)->ignore();
+    m_copy.setup(param_liveness_buffer)->wait();
+    m_copy.memset(param_liveness_buffer, 1)->wait();
 
     // Number of tracks per seed
     vecmem::data::vector_buffer<unsigned int> n_tracks_per_seed_buffer(
         n_seeds, m_mr.main);
-    m_copy.setup(n_tracks_per_seed_buffer)->ignore();
+    m_copy.setup(n_tracks_per_seed_buffer)->wait();
 
     // Create a buffer for links
     unsigned int link_buffer_capacity = m_cfg.initial_links_per_seed * n_seeds;
@@ -166,9 +166,15 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
     unsigned int n_in_params = n_seeds;
 
-    for (unsigned int step = 0;
-         step < m_cfg.max_track_candidates_per_track && n_in_params > 0;
-         step++) {
+    std::cout << "There is initially " << n_in_params << " in_params..." << std::endl;
+
+    for (unsigned int step = 0; n_in_params > 0; step++) {
+
+        std::cout << "Step " << step << " with " << n_in_params << " in_params..." << std::endl;
+        std::cout << "Step " << step << " step_to_link_idx_map state: ";
+        for (const auto& [k ,v] : step_to_link_idx_map)
+            std::cout << k << ":" << v << " ";
+        std::cout << std::endl;
 
         /*****************************************************************
          * Kernel2: Apply material interaction
@@ -203,14 +209,14 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 updated_params_buffer(
                     n_in_params * m_cfg.max_num_branches_per_surface,
                     m_mr.main);
-            m_copy.setup(updated_params_buffer)->ignore();
+            m_copy.setup(updated_params_buffer)->wait();
 
             vecmem::data::vector_buffer<unsigned int> updated_liveness_buffer(
                 n_in_params * m_cfg.max_num_branches_per_surface, m_mr.main);
-            m_copy.setup(updated_liveness_buffer)->ignore();
+            m_copy.setup(updated_liveness_buffer)->wait();
 
             // Reset the number of tracks per seed
-            m_copy.memset(n_tracks_per_seed_buffer, 0)->ignore();
+            m_copy.memset(n_tracks_per_seed_buffer, 0)->wait();
 
             const unsigned int links_size = m_copy.get_size(links_buffer);
 
@@ -273,6 +279,16 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                 ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
             ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
 
+            auto bufHost_payload_copy =
+                ::alpaka::allocBuf<PayloadType, Idx>(devHost, 1u);
+            PayloadType* payload_copy =
+                ::alpaka::getPtrNative(bufHost_payload_copy);
+            ::alpaka::memcpy(queue, bufHost_payload_copy, bufHost_payload);
+            ::alpaka::wait(queue);
+
+            debug_find_tracks<std::decay_t<detector_type>>(
+                "BeforeFind", m_copy, *payload, nullptr);
+
             ::alpaka::exec<Acc>(queue, workDiv,
                                 FindTracksKernel<std::decay_t<detector_type>>{},
                                 m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
@@ -286,7 +302,12 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
             n_candidates =
                 step_to_link_idx_map[step + 1] - step_to_link_idx_map[step];
             ::alpaka::wait(queue);
+
+            debug_find_tracks<std::decay_t<detector_type>>(
+                "AfterFind", m_copy, *payload, payload_copy);
         }
+
+        std::cout << "Step " << step << " with " << n_candidates << " candidates!" << std::endl;
 
         if (step == m_cfg.max_track_candidates_per_track - 1) {
             break;
@@ -299,12 +320,12 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
 
             vecmem::data::vector_buffer<unsigned int> param_ids_buffer(
                 n_candidates, m_mr.main);
-            m_copy.setup(param_ids_buffer)->ignore();
+            m_copy.setup(param_ids_buffer)->wait();
 
             {
                 vecmem::data::vector_buffer<device::sort_key> keys_buffer(
                     n_candidates, m_mr.main);
-                m_copy.setup(keys_buffer)->ignore();
+                m_copy.setup(keys_buffer)->wait();
 
                 Idx blocksPerGrid =
                     (n_candidates + threadsPerBlock - 1) / threadsPerBlock;
@@ -314,7 +335,6 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                     queue, workDiv, FillSortKeysKernel{},
                     device::fill_sort_keys_payload{
                         in_params_buffer, keys_buffer, param_ids_buffer});
-                ::alpaka::wait(queue);
 
                 // Sort the key and values
                 vecmem::device_vector<device::sort_key> keys_device(
@@ -356,9 +376,20 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                                 .n_in_params = n_candidates,
                                 .tips_view = tips_buffer};
 
+                debug_propagate_to_next_surface<
+                    std::decay_t<propagator_type>, std::decay_t<bfield_type>
+                >("Before", m_copy, *payload, nullptr);
+
                 auto bufAcc_payload =
                     ::alpaka::allocBuf<PayloadType, Idx>(devAcc, 1u);
                 ::alpaka::memcpy(queue, bufAcc_payload, bufHost_payload);
+
+                auto bufHost_payload_copy =
+                    ::alpaka::allocBuf<PayloadType, Idx>(devHost, 1u);
+                PayloadType* payload_copy =
+                    ::alpaka::getPtrNative(bufHost_payload_copy);
+                ::alpaka::memcpy(queue, bufHost_payload_copy, bufHost_payload);
+                ::alpaka::wait(queue);
 
                 ::alpaka::exec<Acc>(
                     queue, workDiv,
@@ -366,8 +397,15 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                                                  std::decay_t<bfield_type>>{},
                     m_cfg, ::alpaka::getPtrNative(bufAcc_payload));
                 ::alpaka::wait(queue);
+
+                debug_propagate_to_next_surface<
+                    std::decay_t<propagator_type>, std::decay_t<bfield_type>
+                >("After", m_copy, *payload, payload_copy);
+
             }
         }
+
+        std::cout << "Step " << step << " finished with " << n_candidates << " candidates!" << std::endl;
 
         n_in_params = n_candidates;
     }
@@ -394,8 +432,8 @@ finding_algorithm<stepper_t, navigator_t>::operator()(
                                   m_cfg.max_track_candidates_per_track),
          m_mr.main, m_mr.host, vecmem::data::buffer_type::resizable}};
 
-    m_copy.setup(track_candidates_buffer.headers)->ignore();
-    m_copy.setup(track_candidates_buffer.items)->ignore();
+    m_copy.setup(track_candidates_buffer.headers)->wait();
+    m_copy.setup(track_candidates_buffer.items)->wait();
 
     // @Note: nBlocks can be zero in case there is no tip. This happens when
     // chi2_max config is set tightly and no tips are found
