@@ -255,7 +255,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
             copy(vecmem::get_data(cells_per_event), cells_buffer)->wait();
 
             // Alpaka
-            std::cout << "Clusterization..." << std::endl;
             {
                 traccc::performance::timer t("Clusterization (alpaka)",
                                              elapsedTimes);
@@ -265,9 +264,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 ms_alpaka(measurements_alpaka_buffer);
                 queue.synchronize();
             }  // stop measuring clusterization alpaka timer
-            std::cout << "Finished!" << std::endl;
-            std::cout << "There are " << copy.get_size(measurements_alpaka_buffer) << " measurements!" << std::endl;
-
 
             // CPU
             if (accelerator_opts.compare_with_cpu) {
@@ -276,14 +272,12 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 measurements_per_event =
                     ca(vecmem::get_data(cells_per_event), host_det_descr_data);
             }  // stop measuring clusterization cpu timer
-            std::cout << "CPU found " << (measurements_per_event.size()) << " measurements!" << std::endl;
 
             // Perform seeding, track finding and fitting only when using a
             // Detray geometry.
             if (detector_opts.use_detray_detector) {
 
                 // Alpaka
-                std::cout << "Spacepoint formation..." << std::endl;
                 {
                     traccc::performance::timer t(
                         "Spacepoint formation (alpaka)", elapsedTimes);
@@ -291,8 +285,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         device_detector_view, measurements_alpaka_buffer);
                     queue.synchronize();
                 }  // stop measuring spacepoint formation alpaka timer
-                std::cout << "Finished!" << std::endl;
-                std::cout << "There are " << copy.get_size(spacepoints_alpaka_buffer) << " spacepoints!" << std::endl;
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {
@@ -302,18 +294,14 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         sf(host_detector,
                            vecmem::get_data(measurements_per_event));
                 }  // stop measuring spacepoint formation cpu timer
-                std::cout << "CPU found " << (spacepoints_per_event.size()) << " spacepoints!" << std::endl;
 
                 // Alpaka
-                std::cout << "Seeding..." << std::endl;
                 {
                     traccc::performance::timer t("Seeding (alpaka)",
                                                  elapsedTimes);
                     seeds_alpaka_buffer = sa_alpaka(spacepoints_alpaka_buffer);
                     queue.synchronize();
                 }  // stop measuring seeding alpaka timer
-                std::cout << "Finished!" << std::endl;
-                std::cout << "There are " << copy.get_size(seeds_alpaka_buffer) << " seeds!" << std::endl;
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {
@@ -321,10 +309,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
                                                  elapsedTimes);
                     seeds = sa(vecmem::get_data(spacepoints_per_event));
                 }  // stop measuring seeding cpu timer
-                std::cout << "CPU found " << (seeds.size()) << " seeds!" << std::endl;
 
                 // Alpaka
-                std::cout << "Track params..." << std::endl;
                 {
                     traccc::performance::timer t("Track params (alpaka)",
                                                  elapsedTimes);
@@ -333,8 +319,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         seeds_alpaka_buffer, field_vec);
                     queue.synchronize();
                 }  // stop measuring track params timer
-                std::cout << "Finished!" << std::endl;
-                std::cout << "There is " << copy.get_size(params_alpaka_buffer) << " params!" << std::endl;
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {
@@ -344,10 +328,8 @@ int seq_run(const traccc::opts::detector& detector_opts,
                                 vecmem::get_data(spacepoints_per_event),
                                 vecmem::get_data(seeds), field_vec);
                 }  // stop measuring track params cpu timer
-                std::cout << "CPU found " << (params.size()) << " params!" << std::endl;
 
                 // Alpaka
-                std::cout << "Track finding..." << std::endl;
                 {
                     traccc::performance::timer timer{"Track finding (alpaka)",
                                                      elapsedTimes};
@@ -356,7 +338,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         params_alpaka_buffer);
                     queue.synchronize();
                 }
-                std::cout << "Finished!" << std::endl;
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {
@@ -369,7 +350,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                 }
 
                 // Alpaka
-                std::cout << "Track fitting..." << std::endl;
                 {
                     traccc::performance::timer timer{"Track fitting (alpaka)",
                                                      elapsedTimes};
@@ -377,7 +357,6 @@ int seq_run(const traccc::opts::detector& detector_opts,
                         device_detector_view, field, track_candidates_buffer);
                     queue.synchronize();
                 }
-                std::cout << "Finished!" << std::endl;
 
                 // CPU
                 if (accelerator_opts.compare_with_cpu) {

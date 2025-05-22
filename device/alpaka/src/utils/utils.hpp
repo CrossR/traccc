@@ -44,12 +44,9 @@ consteval Idx getWarpSize() {
         return 64;
     }
 
-    if constexpr (::alpaka::accMatchesTags<TAcc, ::alpaka::TagGpuCudaRt>) {
+    if constexpr (::alpaka::accMatchesTags<TAcc, ::alpaka::TagGpuCudaRt,
+                                                 ::alpaka::TagGpuSyclIntel>) {
         return 32;
-    }
-
-    if constexpr (::alpaka::accMatchesTags<TAcc, ::alpaka::TagGpuSyclIntel>) {
-        return 8;
     }
 
     return 4;

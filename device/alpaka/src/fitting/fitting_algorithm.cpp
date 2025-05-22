@@ -112,7 +112,6 @@ track_state_container_types::buffer fitting_algorithm<fitter_t>::operator()(
 
     // Calculate the number of threads and thread blocks to run the track
     // fitting
-    std::cout << "There is " << n_tracks << "tracks in the fitting algorithm..." << std::endl;
     if (n_tracks > 0) {
         const Idx blocksPerGrid =
             (n_tracks + threadsPerBlock - 1) / threadsPerBlock;

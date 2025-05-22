@@ -10,7 +10,6 @@ include( traccc-compiler-options-cpp )
 
 set(PUBLIC_LIBRARIES traccc::core traccc::device_common vecmem::core covfie::core)
 set(PRIVATE_LIBRARIES alpaka::alpaka)
-set(LINK_OPTIONS)
 
 traccc_enable_language_alpaka()
 
@@ -22,7 +21,6 @@ elseif(alpaka_ACC_GPU_HIP_ENABLE)
 elseif(alpaka_ACC_SYCL_ENABLE)
   include( traccc-compiler-options-sycl )
   list(APPEND PRIVATE_LIBRARIES vecmem::sycl)
-  # list(APPEND LINK_OPTIONS "-ftarget-register-alloc-mode=pvc:large")
 endif()
 
 traccc_add_alpaka_library( traccc_alpaka alpaka TYPE SHARED
@@ -84,5 +82,4 @@ else()
   list(APPEND PRIVATE_LIBRARIES traccc::alpaka_thrust)
 endif()
 
-target_link_libraries(traccc_alpaka PUBLIC ${PUBLIC_LIBRARIES} PRIVATE ${PRIVATE_LIBRARIES}
-    ${LINK_OPTIONS})
+target_link_libraries(traccc_alpaka PUBLIC ${PUBLIC_LIBRARIES} PRIVATE ${PRIVATE_LIBRARIES})
